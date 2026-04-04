@@ -1685,8 +1685,25 @@ function renderHistory() {
 
 //ARCHIVE / UNARCHIVE / PERM DELETE
 function archiveTransaction(id) {
-  const tx = history.find(h => h.id === id);
-  if (tx) { tx.is_archived = true; renderHistory(); updateStats(); }
+    const tx = history.find(h => h.id === id);
+
+    if (!tx) { return; }
+
+    // ✅ Check if book is still borrowed
+    if (tx.status === 'borrowed' || 
+        tx.status === 'overdue') {
+        openNotifModal(
+            '⚠️ Cannot Archive',
+            'This transaction cannot be archived because the book has not been returned yet. Please wait for the book to be returned first!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Book is returned — safe to archive
+    tx.is_archived = true;
+    renderHistory();
+    updateStats();
 }
 
 function unarchiveTransaction(id) {
