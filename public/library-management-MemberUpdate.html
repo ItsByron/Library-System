@@ -579,7 +579,47 @@
         </table>
       </div>
     </div>
+<!-- DELETE MEMBER CONFIRMATION MODAL -->
+<div class="overlay" id="deleteMemberModal">
+  <div class="modal">
+    <h3>Remove Member</h3>
+    <p style="color:var(--muted)">
+      Are you sure you want to remove 
+      <em id="deleteMemberName"></em> 
+      from the system? This cannot be undone.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-cancel" 
+              onclick="closeDeleteMemberModal()">
+        Cancel
+      </button>
+      <button class="btn-confirm" 
+              style="background:#8b3a1c"
+              onclick="confirmDeleteMember()">
+        Remove
+      </button>
+    </div>
+  </div>
+</div>
 
+<!-- MEMBER WARNING MODAL -->
+<div class="overlay" id="memberWarningModal">
+  <div class="modal">
+    <h3 style="color:#8b3a1c">⚠️ Cannot Remove Member</h3>
+    <p style="color:var(--muted); margin-top:.5rem">
+      <em id="memberWarningName"></em> cannot be removed
+      because they currently have borrowed books.
+      Please wait for all books to be returned first.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              style="background:#8b3a1c"
+              onclick="closeMemberWarningModal()">
+        OK, Got it!
+      </button>
+    </div>
+  </div>
+</div>
     <!-- HISTORY -->
     <div id="section-history" class="section">
       <div class="section-header">
@@ -660,6 +700,23 @@
   </div>
 </div>
 
+<!-- NOTIFICATION MODAL -->
+<div class="overlay" id="notifModal">
+  <div class="modal">
+    <h3 id="notifTitle" style="color:#8b3a1c">⚠️ Warning</h3>
+    <p id="notifMessage" 
+       style="color:var(--muted); margin-top:.5rem">
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              id="notifBtn"
+              onclick="closeNotifModal()">
+        OK, Got it!
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- DELETE MODAL -->
 <div class="overlay" id="deleteModal">
   <div class="modal">
@@ -668,6 +725,23 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
       <button class="btn-confirm" onclick="confirmDelete()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="warningModal">
+  <div class="modal">
+    <h3 style="color:#8b3a1c">⚠️ Cannot Delete Book</h3>
+    <p style="color:var(--muted); margin-top:.5rem">
+      <em id="warningModalTitle"></em> cannot be deleted
+      because it is currently borrowed by a member.
+      Please wait for the book to be returned first.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm" 
+              onclick="closeWarningModal()">
+        OK, Got it!
+      </button>
     </div>
   </div>
 </div>
@@ -692,6 +766,45 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeDeleteAllModal()">Cancel</button>
       <button class="btn-confirm" style="background:#8b3a1c" onclick="confirmDeleteAll()">Delete All</button>
+    </div>
+  </div>
+</div>
+
+<!-- MEMBER BOOKS MODAL -->
+<div class="overlay" id="memberBooksModal">
+  <div class="modal" style="max-width:700px">
+    <h3 style="font-family:'Playfair Display',serif">
+      📚 Borrowed Books
+    </h3>
+    <p style="color:var(--muted);font-style:italic;
+              margin-top:.3rem;margin-bottom:1rem"
+       id="memberBooksName">
+    </p>
+
+    <!-- Books Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Book ID</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Genre</th>
+            <th>Borrow Date</th>
+            <th>Due Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="memberBooksTable">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              onclick="closeMemberBooksModal()">
+        Close
+      </button>
     </div>
   </div>
 </div>
@@ -723,6 +836,8 @@ let pendingDeleteId  = null;
 let pendingPermDeleteId = null;
 let historyTab       = 'active';
 
+
+let pendingDeleteMemberId = null;
 // Fetch Function 
 
 async function loadBooks() {
@@ -738,7 +853,6 @@ async function loadBooks() {
             year     : b.Year,
             color    : i % COLORS.length
         }));
-        renderCatalog();
         updateStats();
     } catch (err) {
         console.error('Error loading books:', err);
@@ -809,6 +923,7 @@ async function loadBorrowed() {
             dueDate   : data.find(t => t.Book_ID === b.id)
                           ?.Due_Date?.split('T')[0] || null
         }));
+        renderCatalog();
         renderBorrowed();
         updateStats();
     } catch (err) {
@@ -1002,6 +1117,7 @@ async function confirmBorrow() {
         await loadBooks();
         await loadTransactions();
         await loadBorrowed();
+        await renderCatalog();
     } catch (err) {
         console.error('Error borrowing book:', err);
     }
@@ -1037,51 +1153,313 @@ function closeDeleteModal() {
   pendingDeleteId = null;
 }
 
+// ── NOTIFICATION MODAL ────────────────────────────────
+function openNotifModal(title, message, type) {
+    const titleEl   = document.getElementById('notifTitle');
+    const messageEl = document.getElementById('notifMessage');
+    const btnEl     = document.getElementById('notifBtn');
+
+    // ✅ Set title and message
+    titleEl.textContent   = title;
+    messageEl.textContent = message;
+
+    // ✅ Change color based on type
+    if (type === 'error') {
+        titleEl.style.color = '#8b3a1c';
+        btnEl.style.background = '#8b3a1c';
+    } else if (type === 'success') {
+        titleEl.style.color = '#2c6e49';
+        btnEl.style.background = '#2c6e49';
+    } else if (type === 'warning') {
+        titleEl.style.color = '#C9A84C';
+        btnEl.style.background = '#C9A84C';
+    }
+
+    document.getElementById('notifModal')
+        .classList.add('open');
+}
+
+function closeNotifModal() {
+    document.getElementById('notifModal')
+        .classList.remove('open');
+}
+
 async function confirmDelete() {
     try {
-        await fetch(`${API}/books/${pendingDeleteId}`, {
+        // Get the book title for warning message
+        const book = books.find(b => b.id === pendingDeleteId);
+
+        const response = await fetch(
+            `${API}/books/${pendingDeleteId}`, {
             method: 'DELETE'
         });
+
+        const result = await response.json();
+
+        // ✅ Check if deletion was blocked
+        if (!response.ok) {
+            // Close delete modal first
+            closeDeleteModal();
+            // Show warning modal instead
+            openWarningModal(book ? book.title : 'This book');
+            return;
+        }
+
         closeDeleteModal();
         await loadBooks();
+        await loadTransactions();
+        await loadBorrowed();
+
     } catch (err) {
         console.error('Error deleting book:', err);
+        closeDeleteModal();
+        openWarningModal('This book');
     }
 }
 
+function openWarningModal(bookTitle) {
+    document.getElementById('warningModalTitle')
+        .textContent = '"' + bookTitle + '"';
+    document.getElementById('warningModal')
+        .classList.add('open');
+}
+
+function closeWarningModal() {
+    document.getElementById('warningModal')
+        .classList.remove('open');
+}
 // Function for adding a new member
 async function addMember() {
-    const name = document.getElementById('m-name').value.trim();
-    if (!name) { return; }
+    const name    = document.getElementById('m-name').value.trim();
+    const email   = document.getElementById('m-email').value.trim();
+    const contact = document.getElementById('m-contact').value.trim();
+
+    // ✅ Check 1 — Name cannot be empty
+    if (!name) {
+        openNotifModal(
+            '⚠️ Name Required',
+            'Please enter a member name!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Check 2 — Name must have letters only
+    // No numbers, no @, no special characters
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!nameRegex.test(name)) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name must contain letters only! No numbers, email or contact number allowed.',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Check 3 — Name cannot contain @ (email format)
+    if (name.includes('@')) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name cannot contain an email address!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Check 4 — Name cannot contain numbers (contact format)
+    const hasNumbers = /\d/;
+    if (hasNumbers.test(name)) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name cannot contain numbers or a contact number!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Check 5 — Email is required
+    if (!email && !contact) {
+        openNotifModal(
+            '⚠️ Contact information is required',
+            'Please enter an email address or contact number!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ Check 6 — Email must be valid format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if (email && !emailRegex.test(email)) {
+    openNotifModal(
+        '⚠️ Invalid Email',
+        'Please enter a valid email! Example: john@email.com',
+        'error'
+    );
+    return;
+}
+
+    // ✅ Check 8 — Contact must be numbers only
+    const contactRegex = /^[0-9+\s\-]{7,15}$/;
+if (contact && !contactRegex.test(contact)) {
+    openNotifModal(
+        '⚠️ Invalid Contact Number',
+        'Please enter a valid contact number! Example: 09123456789',
+        'error'
+    );
+    return;
+}
+
+    // ✅ Check 9 — Contact cannot contain letters
+    const hasLetters = /[a-zA-Z]/;
+    if (hasLetters.test(contact)) {
+        openNotifModal(
+            '⚠️ Invalid Contact Number',
+            'Contact number cannot contain letters!',
+            'error'
+        );
+        return;
+    }
+
+    // ✅ All local validations passed
+    // Now check database for existing members
     try {
-        await fetch(`${API}/members`, {
+        const response = await fetch(`${API}/members`, {
             method : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body   : JSON.stringify({
                 Name          : name,
-                Email         : document.getElementById('m-email').value.trim(),
-                Contact_Number: document.getElementById('m-contact').value.trim()
+                Email         : email,
+                Contact_Number: contact
             })
         });
-        ['m-name','m-email','m-contact']
-            .forEach(id => document.getElementById(id).value = '');
+
+        const result = await response.json();
+
+        // ✅ Show error from backend
+        if (result.status === 'error') {
+            openNotifModal(
+                '⚠️ Cannot Add Member',
+                result.message,
+                'error'
+            );
+            return;
+        }
+
+        // ✅ Success!
+        openNotifModal(
+            '✅ Member Added',
+            `${name} has been successfully added!`,
+            'success'
+        );
+
+        // ✅ Clear all fields
+        ['m-name', 'm-email', 'm-contact']
+            .forEach(id => 
+                document.getElementById(id).value = '');
+
+        // ✅ Reload members
         await loadMembers();
+
     } catch (err) {
         console.error('Error adding member:', err);
+        openNotifModal(
+            '⚠️ Error',
+            'Something went wrong! Please try again.',
+            'error'
+        );
     }
 }
 
-async function removeMember(id) {
-    const borrowed = books.some(b => b.borrowedBy === id && b.borrowed);
-    if (borrowed) { return; }
+function removeMember(id) {
+    // ✅ Open confirmation modal first
+    openDeleteMemberModal(id);
+}
+
+async function confirmDeleteMember() {
+    const member = members.find(
+        m => m.id === pendingDeleteMemberId
+    );
+
+    // ✅ Check if member has borrowed books
+    const hasBorrowed = books.some(
+        b => b.borrowedBy === pendingDeleteMemberId 
+          && b.borrowed
+    );
+
+    // ✅ Member has borrowed books — show warning
+    if (hasBorrowed) {
+        closeDeleteMemberModal();
+        openMemberWarningModal(
+            member ? member.name : 'This member'
+        );
+        return;
+    }
+
+    // ✅ Safe to delete — call backend
     try {
-        await fetch(`${API}/members/${id}`, {
+        const response = await fetch(
+            `${API}/members/${pendingDeleteMemberId}`, {
             method: 'DELETE'
         });
+
+        const result = await response.json();
+
+        // ✅ Backend also blocked deletion
+        if (!response.ok) {
+            closeDeleteMemberModal();
+            openMemberWarningModal(
+                member ? member.name : 'This member'
+            );
+            return;
+        }
+
+        // ✅ Successfully deleted
+        closeDeleteMemberModal();
+        openNotifModal(
+            '✅ Member Removed',
+            `${member ? member.name : 'Member'} has been successfully removed!`,
+            'success'
+        );
         await loadMembers();
+
     } catch (err) {
         console.error('Error removing member:', err);
+        closeDeleteMemberModal();
+        openNotifModal(
+            '⚠️ Error',
+            'Something went wrong! Please try again.',
+            'error'
+        );
     }
+}
+
+// ── DELETE MEMBER MODAL ───────────────────────────────
+function openDeleteMemberModal(id) {
+    pendingDeleteMemberId = id;
+    const member = members.find(m => m.id === id);
+    document.getElementById('deleteMemberName')
+        .textContent = '"' + member.name + '"';
+    document.getElementById('deleteMemberModal')
+        .classList.add('open');
+}
+
+function closeDeleteMemberModal() {
+    document.getElementById('deleteMemberModal')
+        .classList.remove('open');
+    pendingDeleteMemberId = null;
+}
+
+// ── MEMBER WARNING MODAL ──────────────────────────────
+function openMemberWarningModal(memberName) {
+    document.getElementById('memberWarningName')
+        .textContent = '"' + memberName + '"';
+    document.getElementById('memberWarningModal')
+        .classList.add('open');
+}
+
+function closeMemberWarningModal() {
+    document.getElementById('memberWarningModal')
+        .classList.remove('open');
 }
 
 function renderMembers() {
@@ -1126,6 +1504,45 @@ function renderMembers() {
       </td>
       <td><button class="btn-action btn-del" 
                   onclick="removeMember(${m.id})">Remove</button></td>
+    </tr>`;
+  }).join('');
+
+  tbody.innerHTML = filtered.map(m => {
+    const booksOut = books.filter(
+        b => b.borrowed && b.borrowedBy === m.id
+    ).length;
+    return `<tr>
+      <td style="font-weight:600">${m.name}</td>
+      <td><span class="id-chip">
+          MBR-${String(m.id).padStart(4,'0')}
+      </span></td>
+      <td style="color:var(--muted);font-style:italic">
+          ${m.email || '—'}
+      </td>
+      <td>${m.contact || '—'}</td>
+      <td>${m.joined}</td>
+      <td style="text-align:center">
+        <span style="font-weight:600;
+                     color:${booksOut > 0 
+                         ? 'var(--rust)' 
+                         : 'var(--forest)'}">
+          ${booksOut}
+        </span>
+      </td>
+      <td>
+        <div style="display:flex;gap:.4rem">
+          <!-- ✅ View Button -->
+          <button class="btn-action btn-edit"
+                  onclick="openMemberBooksModal(${m.id})">
+            View
+          </button>
+          <!-- Remove Button -->
+          <button class="btn-action btn-del" 
+                  onclick="removeMember(${m.id})">
+            Remove
+          </button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -1306,6 +1723,124 @@ function confirmPermDelete() {
   closePermDeleteModal();
   renderHistory();
   updateStats();
+}
+
+// ── MEMBER BOOKS MODAL ────────────────────────────────
+async function openMemberBooksModal(id) {
+    const member = members.find(m => m.id === id);
+
+    // ✅ Set member name in modal
+    document.getElementById('memberBooksName')
+        .textContent = member 
+            ? 'Showing borrowed books for: ' + member.name 
+            : '';
+
+    // ✅ Show loading state
+    document.getElementById('memberBooksTable')
+        .innerHTML = `
+        <tr>
+            <td colspan="7" 
+                style="text-align:center;
+                       padding:2rem;
+                       color:var(--muted);
+                       font-style:italic">
+                Loading...
+            </td>
+        </tr>`;
+
+    // ✅ Open modal first
+    document.getElementById('memberBooksModal')
+        .classList.add('open');
+
+    try {
+        // ✅ Fetch borrowed books for this member
+        const response = await fetch(
+            `${API}/members/${id}/borrowed`
+        );
+        const data = await response.json();
+
+        const tbody = document.getElementById(
+            'memberBooksTable'
+        );
+
+        // ✅ No borrowed books
+        if (!data.length) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="7" 
+                    style="text-align:center;
+                           padding:2rem;
+                           color:var(--muted);
+                           font-style:italic">
+                    This member has no borrowed books.
+                </td>
+            </tr>`;
+            return;
+        }
+
+        // ✅ Show borrowed books
+        const today = new Date()
+            .toISOString().split('T')[0];
+
+        tbody.innerHTML = data.map(b => {
+            const overdue = b.Due_Date
+                ?.split('T')[0] < today 
+                && b.Status === 'Overdue';
+            return `<tr>
+                <td>
+                    <span class="id-chip">
+                        BOOK-${String(b.Book_ID)
+                            .padStart(4,'0')}
+                    </span>
+                </td>
+                <td style="font-weight:600">
+                    ${b.Book_Title}
+                </td>
+                <td style="color:var(--muted);
+                           font-style:italic">
+                    ${b.Book_Author}
+                </td>
+                <td>${b.Book_Genre}</td>
+                <td>${b.Borrow_Date
+                    ?.split('T')[0] || '—'}
+                </td>
+                <td style="color:${overdue 
+                    ? '#c0392b' : 'inherit'};
+                    font-weight:${overdue 
+                    ? '600' : '400'}">
+                    ${b.Due_Date
+                        ?.split('T')[0] || '—'}
+                    ${overdue ? ' ⚠' : ''}
+                </td>
+                <td>
+                    <span class="status-badge 
+                        ${b.Status === 'Overdue' 
+                            ? 'status-overdue' 
+                            : 'status-borrowed'}">
+                        ${b.Status}
+                    </span>
+                </td>
+            </tr>`;
+        }).join('');
+
+    } catch (err) {
+        console.error('Error loading member books:', err);
+        document.getElementById('memberBooksTable')
+            .innerHTML = `
+            <tr>
+                <td colspan="7" 
+                    style="text-align:center;
+                           padding:2rem;
+                           color:#c0392b">
+                    Error loading books!
+                </td>
+            </tr>`;
+    }
+}
+
+function closeMemberBooksModal() {
+    document.getElementById('memberBooksModal')
+        .classList.remove('open');
 }
 
 // Start rendering the system (Nasa taas yung function na ito)

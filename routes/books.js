@@ -69,10 +69,16 @@ router.delete('/:id', (req, res) => {
         [id],
         (err, results) => {
             if (err) {
-                res.status(500).json({ 
-                    message: 'Error deleting book', 
-                    error: err 
-                });
+                if (err.sqlState === '45000') {
+                    res.status(400).json({ 
+                        message: err.sqlMessage
+                    });
+                } else {
+                    res.status(500).json({ 
+                        message: 'Error deleting book', 
+                        error: err 
+                    });
+                }
                 return;
             }
             res.json({ message: 'Book deleted successfully!' });
