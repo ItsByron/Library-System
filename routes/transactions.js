@@ -36,7 +36,7 @@ router.get('/borrowed', (req, res) => {
     );
 });
 
-// METHOD KAPAG MAHIRAM NG BOOK
+// METHOD FOR BORROWING A BOOK
 router.post('/borrow', (req, res) => {
     const { Book_ID, Member_ID, 
             Borrow_Date, Due_Date } = req.body;
@@ -57,7 +57,7 @@ router.post('/borrow', (req, res) => {
     );
 });
 
-// METHOD KAPAG ABALIK NA YUNG BOOK
+// METHOD WHEN RETURNING A BOOK
 router.post('/return/:id', (req, res) => {
     const { id } = req.params;
 
@@ -82,7 +82,7 @@ router.post('/return/:id', (req, res) => {
     );
 });
 
-// ARCHIVING NG TRANSACTION
+// ARCHIVING OF TRANSACTION
 router.post('/archive', (req, res) => {
     db.query(
         'CALL sp_ArchiveOldTransactions()',

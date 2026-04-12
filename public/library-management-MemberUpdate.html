@@ -1048,32 +1048,64 @@ function renderCatalog() {
   updateStats();
 }
 
-// Function for Adding a new book
 async function addBook() {
+    // Get values
     const title  = document.getElementById('f-title').value.trim();
     const author = document.getElementById('f-author').value.trim();
-    if (!title || !author) { return; }
+    const isbn   = document.getElementById('f-isbn').value.trim();
+    const genre  = document.getElementById('f-genre').value;
+    const year   = document.getElementById('f-year').value.trim();
+
+    // Simple validation
+    if (!title) {
+        openNotifModal('Error', 'Title is required!', 'error');
+        return;
+    }
+    if (!author) {
+        openNotifModal('Error', 'Author is required!', 'error');
+        return;
+    }
+    if (!genre) {
+        openNotifModal('Error', 'Please select a genre!', 'error');
+        return;
+    }
+    if (!year) {
+        openNotifModal('Error', 'Year is required!', 'error');
+        return;
+    }
+
     try {
-        await fetch(`${API}/books`, {
+        const response = await fetch(`${API}/books`, {
             method : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body   : JSON.stringify({
-                Title   : title,
-                Author  : author,
-                Isbn    : document.getElementById('f-isbn').value.trim(),
-                Genre   : document.getElementById('f-genre').value,
-                Year    : parseInt(document.getElementById('f-year').value)
-                          || new Date().getFullYear(),
+                Title : title,
+                Author: author,
+                Isbn  : isbn,
+                Genre : genre,
+                Year  : parseInt(year)
             })
         });
+
+        const result = await response.json();
+
+        if (result.status === 'error') {
+            openNotifModal('Error', result.message, 'error');
+            return;
+        }
+
+        // Success!
+        openNotifModal('Book Added', title + ' has been added!', 'success');
         ['f-title','f-author','f-isbn','f-year']
             .forEach(id => document.getElementById(id).value = '');
         await loadBooks();
+        await loadBorrowed();
+
     } catch (err) {
         console.error('Error adding book:', err);
+        openNotifModal('Error', 'Something went wrong!', 'error');
     }
 }
-
 // Function for borrowing a book
 function openBorrowModal(id) {
   pendingBorrowId = id;
@@ -1234,7 +1266,7 @@ async function addMember() {
     const email   = document.getElementById('m-email').value.trim();
     const contact = document.getElementById('m-contact').value.trim();
 
-    // ✅ Check 1 — Name cannot be empty
+    //Check name cannot be empty
     if (!name) {
         openNotifModal(
             '⚠️ Name Required',
@@ -1244,7 +1276,7 @@ async function addMember() {
         return;
     }
 
-    // ✅ Check 2 — Name must have letters only
+    // Name must have letters only
     // No numbers, no @, no special characters
     const nameRegex = /^[a-zA-Z\s]+$/;
     if (!nameRegex.test(name)) {
@@ -1256,7 +1288,7 @@ async function addMember() {
         return;
     }
 
-    // ✅ Check 3 — Name cannot contain @ (email format)
+    //Name cannot contain @ (email format)
     if (name.includes('@')) {
         openNotifModal(
             '⚠️ Invalid Name',
@@ -1266,7 +1298,7 @@ async function addMember() {
         return;
     }
 
-    // ✅ Check 4 — Name cannot contain numbers (contact format)
+    //Name cannot contain numbers (contact format)
     const hasNumbers = /\d/;
     if (hasNumbers.test(name)) {
         openNotifModal(
@@ -1277,7 +1309,7 @@ async function addMember() {
         return;
     }
 
-    // ✅ Check 5 — Email is required
+    // Email is required
     if (!email && !contact) {
         openNotifModal(
             '⚠️ Contact information is required',
@@ -1287,7 +1319,7 @@ async function addMember() {
         return;
     }
 
-    // ✅ Check 6 — Email must be valid format
+    // Email must be valid format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 if (email && !emailRegex.test(email)) {
     openNotifModal(
@@ -1298,7 +1330,7 @@ if (email && !emailRegex.test(email)) {
     return;
 }
 
-    // ✅ Check 8 — Contact must be numbers only
+    // Contact must be numbers only
     const contactRegex = /^[0-9+\s\-]{7,15}$/;
 if (contact && !contactRegex.test(contact)) {
     openNotifModal(
@@ -1309,7 +1341,7 @@ if (contact && !contactRegex.test(contact)) {
     return;
 }
 
-    // ✅ Check 9 — Contact cannot contain letters
+    // Contact cannot contain letters
     const hasLetters = /[a-zA-Z]/;
     if (hasLetters.test(contact)) {
         openNotifModal(
@@ -1320,7 +1352,7 @@ if (contact && !contactRegex.test(contact)) {
         return;
     }
 
-    // ✅ All local validations passed
+    //  All local validations passed
     // Now check database for existing members
     try {
         const response = await fetch(`${API}/members`, {
@@ -1335,7 +1367,7 @@ if (contact && !contactRegex.test(contact)) {
 
         const result = await response.json();
 
-        // ✅ Show error from backend
+        // Show error from backend
         if (result.status === 'error') {
             openNotifModal(
                 '⚠️ Cannot Add Member',
@@ -1345,25 +1377,25 @@ if (contact && !contactRegex.test(contact)) {
             return;
         }
 
-        // ✅ Success!
+        // Success!
         openNotifModal(
-            '✅ Member Added',
+            'Member Added',
             `${name} has been successfully added!`,
             'success'
         );
 
-        // ✅ Clear all fields
+        // Clear all fields
         ['m-name', 'm-email', 'm-contact']
             .forEach(id => 
                 document.getElementById(id).value = '');
 
-        // ✅ Reload members
+        // Reload members
         await loadMembers();
 
     } catch (err) {
         console.error('Error adding member:', err);
         openNotifModal(
-            '⚠️ Error',
+            'Error',
             'Something went wrong! Please try again.',
             'error'
         );
@@ -1371,7 +1403,7 @@ if (contact && !contactRegex.test(contact)) {
 }
 
 function removeMember(id) {
-    // ✅ Open confirmation modal first
+    // Open confirmation modal first
     openDeleteMemberModal(id);
 }
 
@@ -1380,13 +1412,13 @@ async function confirmDeleteMember() {
         m => m.id === pendingDeleteMemberId
     );
 
-    // ✅ Check if member has borrowed books
+    // Check if member has borrowed books
     const hasBorrowed = books.some(
         b => b.borrowedBy === pendingDeleteMemberId 
           && b.borrowed
     );
 
-    // ✅ Member has borrowed books — show warning
+    // Member has borrowed books — show warning
     if (hasBorrowed) {
         closeDeleteMemberModal();
         openMemberWarningModal(
@@ -1395,7 +1427,7 @@ async function confirmDeleteMember() {
         return;
     }
 
-    // ✅ Safe to delete — call backend
+    // Safe to delete — call backend
     try {
         const response = await fetch(
             `${API}/members/${pendingDeleteMemberId}`, {
@@ -1404,7 +1436,7 @@ async function confirmDeleteMember() {
 
         const result = await response.json();
 
-        // ✅ Backend also blocked deletion
+        // Backend also blocked deletion
         if (!response.ok) {
             closeDeleteMemberModal();
             openMemberWarningModal(
@@ -1413,10 +1445,10 @@ async function confirmDeleteMember() {
             return;
         }
 
-        // ✅ Successfully deleted
+        // Successfully deleted
         closeDeleteMemberModal();
         openNotifModal(
-            '✅ Member Removed',
+            'Member Removed',
             `${member ? member.name : 'Member'} has been successfully removed!`,
             'success'
         );
@@ -1426,14 +1458,14 @@ async function confirmDeleteMember() {
         console.error('Error removing member:', err);
         closeDeleteMemberModal();
         openNotifModal(
-            '⚠️ Error',
+            'Error',
             'Something went wrong! Please try again.',
             'error'
         );
     }
 }
 
-// ── DELETE MEMBER MODAL ───────────────────────────────
+// DELETE MEMBER MODAL 
 function openDeleteMemberModal(id) {
     pendingDeleteMemberId = id;
     const member = members.find(m => m.id === id);
@@ -1449,7 +1481,7 @@ function closeDeleteMemberModal() {
     pendingDeleteMemberId = null;
 }
 
-// ── MEMBER WARNING MODAL ──────────────────────────────
+// MEMBER WARNING MODAL 
 function openMemberWarningModal(memberName) {
     document.getElementById('memberWarningName')
         .textContent = '"' + memberName + '"';
@@ -1531,7 +1563,7 @@ function renderMembers() {
       </td>
       <td>
         <div style="display:flex;gap:.4rem">
-          <!-- ✅ View Button -->
+          <!-- View Button -->
           <button class="btn-action btn-edit"
                   onclick="openMemberBooksModal(${m.id})">
             View
@@ -1689,18 +1721,18 @@ function archiveTransaction(id) {
 
     if (!tx) { return; }
 
-    // ✅ Check if book is still borrowed
+    // Check if book is still borrowed
     if (tx.status === 'borrowed' || 
         tx.status === 'overdue') {
         openNotifModal(
-            '⚠️ Cannot Archive',
+            'Cannot Archive',
             'This transaction cannot be archived because the book has not been returned yet. Please wait for the book to be returned first!',
             'error'
         );
         return;
     }
 
-    // ✅ Book is returned — safe to archive
+    // Book is returned — safe to archive
     tx.is_archived = true;
     renderHistory();
     updateStats();
@@ -1742,17 +1774,17 @@ function confirmPermDelete() {
   updateStats();
 }
 
-// ── MEMBER BOOKS MODAL ────────────────────────────────
+// MEMBER BOOKS MODAL 
 async function openMemberBooksModal(id) {
     const member = members.find(m => m.id === id);
 
-    // ✅ Set member name in modal
+    // Set member name in modal
     document.getElementById('memberBooksName')
         .textContent = member 
             ? 'Showing borrowed books for: ' + member.name 
             : '';
 
-    // ✅ Show loading state
+    // Show loading state
     document.getElementById('memberBooksTable')
         .innerHTML = `
         <tr>
@@ -1765,12 +1797,12 @@ async function openMemberBooksModal(id) {
             </td>
         </tr>`;
 
-    // ✅ Open modal first
+    // Open modal first
     document.getElementById('memberBooksModal')
         .classList.add('open');
 
     try {
-        // ✅ Fetch borrowed books for this member
+        // Fetch borrowed books for this member
         const response = await fetch(
             `${API}/members/${id}/borrowed`
         );
@@ -1780,7 +1812,7 @@ async function openMemberBooksModal(id) {
             'memberBooksTable'
         );
 
-        // ✅ No borrowed books
+        // No borrowed books
         if (!data.length) {
             tbody.innerHTML = `
             <tr>
@@ -1795,7 +1827,7 @@ async function openMemberBooksModal(id) {
             return;
         }
 
-        // ✅ Show borrowed books
+        // Show borrowed books
         const today = new Date()
             .toISOString().split('T')[0];
 

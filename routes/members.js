@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
     const { Name, Email, Contact_Number } = req.body;
 
-    // ✅ Check if email already exists
+    //Check if email already exists
     if (Email) {
         db.query(
             'SELECT COUNT(*) AS count FROM Members WHERE Email = ?',
@@ -38,7 +38,6 @@ router.post('/', (req, res) => {
                     return;
                 }
 
-                // ✅ Email already exists!
                 if (results[0].count > 0) {
                     res.status(400).json({
                         status : 'error',
@@ -47,16 +46,16 @@ router.post('/', (req, res) => {
                     return;
                 }
 
-                // ✅ Email is unique — check contact next
+                
                 checkContact();
             }
         );
     } else {
-        // No email provided — check contact directly
+        //No email provided — check contact directly
         checkContact();
     }
 
-    // ✅ Check if contact already exists
+    //Check if contact already exists
     function checkContact() {
         if (Contact_Number) {
             db.query(
@@ -71,7 +70,7 @@ router.post('/', (req, res) => {
                         return;
                     }
 
-                    // ✅ Contact already exists!
+                    //Contact already exists!
                     if (results[0].count > 0) {
                         res.status(400).json({
                             status : 'error',
@@ -80,17 +79,17 @@ router.post('/', (req, res) => {
                         return;
                     }
 
-                    // ✅ Contact is unique — add member
+                    
                     addMember();
                 }
             );
         } else {
-            // No contact provided — add member directly
+            
             addMember();
         }
     }
 
-    // ✅ Finally add the member
+    //Finally add the member
     function addMember() {
         const Date_Joined = new Date()
             .toISOString()
@@ -140,7 +139,7 @@ router.put('/', (req, res) => {
 router.delete('/:id', (req, res) => {
     const { id } = req.params;
 
-    // ✅ Check if member has borrowed books
+    //Check if member has borrowed books
     db.query(
         'SELECT COUNT(*) AS count FROM Transactions WHERE Member_ID = ? AND Return_Date IS NULL',
         [id],
@@ -155,7 +154,7 @@ router.delete('/:id', (req, res) => {
 
             const borrowCount = results[0].count;
 
-            // ✅ Member has borrowed books
+            // Member has borrowed books
             if (borrowCount > 0) {
                 res.status(400).json({
                     status : 'error',
@@ -164,7 +163,7 @@ router.delete('/:id', (req, res) => {
                 return;
             }
 
-            // ✅ Safe to delete
+            // Safe to delete
             db.query(
                 'CALL sp_DeleteMember(?)',
                 [id],
@@ -186,7 +185,7 @@ router.delete('/:id', (req, res) => {
     );
 });
 
-// GET borrowed books for specific member
+// GET borrowed books for specific member (Ito yung sa view action ng member)
 router.get('/:id/borrowed', (req, res) => {
     const { id } = req.params;
     db.query(
