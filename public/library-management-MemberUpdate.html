@@ -2741,6 +2741,11 @@ async function updateMember() {
     const email   = document.getElementById('edit-email').value.trim();
     const contact = document.getElementById('edit-contact').value.trim();
 
+    if (!name) {
+        openNotifModal('Error', 'Name is required!', 'error');
+        return;
+    }
+
     try {
         const response = await fetch(`${API}/members`, {
             method : 'PUT',
@@ -2755,14 +2760,17 @@ async function updateMember() {
 
         const result = await response.json();
 
-        openNotifModal(
-            'Updated',
-            'Member info updated successfully!',
-            'success'
-        );
 
-        closeEditMemberModal();
-        await loadMembers();
+        if (result.message && result.message.includes('successfully')) {
+            openNotifModal('Updated', 'Member info updated successfully!', 'success');
+            closeEditMemberModal();
+
+
+            await loadMembers();
+            await loadTransactions();   
+        } else {
+            openNotifModal('Error', result.message || 'Update failed!', 'error');
+        }
 
     } catch (err) {
         console.error(err);
