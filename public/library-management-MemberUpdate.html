@@ -2601,7 +2601,7 @@ init(); -->
 
 
 
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -4781,6 +4781,2351 @@ function renderHistory() {
   document.getElementById('historyResultCount').textContent = q || filter
     ? 'Showing ' + filtered.length + ' of ' + pool.length + ' record' + (pool.length !== 1 ? 's' : '')
     : '';
+
+  const tbody = document.getElementById('historyTable');
+  const emptyMsg = historyTab === 'active'
+    ? (pool.length ? 'No records match your search.' : 'No transactions recorded yet.')
+    : (pool.length ? 'No archived records match your search.' : 'No archived records.');
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="9" 
+      style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">
+      ${emptyMsg}</td></tr>`;
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  tbody.innerHTML = filtered.map(h => {
+    const isBorrow    = h.status === 'borrowed';
+    const dueDate     = h.dueDate || null;
+    const overdue     = isBorrow && dueDate && dueDate < today;
+    const statusLabel = overdue ? 'Overdue' : (isBorrow ? 'Borrowed' : 'Returned');
+    const statusClass = overdue ? 'status-overdue' : (isBorrow ? 'status-borrowed' : 'status-returned');
+    const actions = historyTab === 'active'
+      ? `<button class="btn-action btn-archive" onclick="archiveTransaction(${h.id})">Archive</button>`
+      : `<button class="btn-action btn-unarchive" onclick="unarchiveTransaction(${h.id})">Unarchive</button>
+         <button class="btn-action btn-perm-del" onclick="openPermDeleteModal(${h.id})">Delete</button>`;
+    return `<tr class="${h.is_archived ? 'archived-row' : ''}">
+      <td class="id-chip">TX-${String(h.id).padStart(6,'0')}</td>
+      <td class="id-chip">BOOK-${String(h.bookId).padStart(4,'0')}</td>
+      <td style="font-weight:600">${h.bookTitle}</td>
+      <td class="id-chip">MBR-${String(h.memberId).padStart(4,'0')}</td>
+      <td>${h.memberName}</td>
+      <td>${h.borrowDate}</td>
+      <td style="color:${h.returnDate ? 'var(--forest)' : 'var(--muted)'}; 
+                 font-style:${h.returnDate ? 'normal' : 'italic'}">
+        ${h.returnDate || (isBorrow ? 'Not returned yet' : '—')}
+      </td>
+      <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+      <td><div style="display:flex;gap:.4rem">${actions}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function archiveTransaction(id) {
+    const tx = history.find(h => h.id === id);
+
+    if (!tx) { return; }
+
+    
+    if (tx.status === 'borrowed' || 
+        tx.status === 'overdue') {
+        openNotifModal(
+            'Cannot Archive',
+            'This transaction cannot be archived because the book has not been returned yet. Please wait for the book to be returned first!',
+            'error'
+        );
+        return;
+    }
+
+    
+    tx.is_archived = true;
+    renderHistory();
+    updateStats();
+}
+
+function unarchiveTransaction(id) {
+  const tx = history.find(h => h.id === id);
+  if (tx) { tx.is_archived = false; renderHistory(); updateStats(); }
+}
+
+function openPermDeleteModal(id) {
+  pendingPermDeleteId = id;
+  document.getElementById('permDeleteTxId').textContent = 'TX-' + String(id).padStart(6,'0');
+  document.getElementById('permDeleteModal').classList.add('open');
+}
+function closePermDeleteModal() {
+  document.getElementById('permDeleteModal').classList.remove('open');
+  pendingPermDeleteId = null;
+}
+function openDeleteAllModal() {
+  const count = history.filter(h => h.is_archived).length;
+  if (!count) { return; }
+  document.getElementById('deleteAllCount').textContent = count;
+  document.getElementById('deleteAllModal').classList.add('open');
+}
+function closeDeleteAllModal() {
+  document.getElementById('deleteAllModal').classList.remove('open');
+}
+function confirmDeleteAll() {
+  history = history.filter(h => !h.is_archived);
+  closeDeleteAllModal();
+  renderHistory();
+  updateStats();
+}
+function confirmPermDelete() {
+  history = history.filter(h => h.id !== pendingPermDeleteId);
+  closePermDeleteModal();
+  renderHistory();
+  updateStats();
+}
+
+async function openMemberBooksModal(id) {
+    const member = members.find(m => m.id === id);
+
+    
+    document.getElementById('memberBooksName')
+        .textContent = member 
+            ? 'Showing borrowed books for: ' + member.name 
+            : '';
+
+    
+    document.getElementById('memberBooksTable')
+        .innerHTML = `
+        <tr>
+            <td colspan="7" 
+                style="text-align:center;
+                       padding:2rem;
+                       color:var(--muted);
+                       font-style:italic">
+                Loading...
+            </td>
+        </tr>`;
+
+    
+    document.getElementById('memberBooksModal')
+        .classList.add('open');
+
+    try {
+        
+        const response = await fetch(
+            `${API}/members/${id}/borrowed`
+        );
+        const data = await response.json();
+
+        const tbody = document.getElementById(
+            'memberBooksTable'
+        );
+
+        
+        if (!data.length) {
+            tbody.innerHTML = `
+            <tr>
+                <td colspan="7" 
+                    style="text-align:center;
+                           padding:2rem;
+                           color:var(--muted);
+                           font-style:italic">
+                    This member has no borrowed books.
+                </td>
+            </tr>`;
+            return;
+        }
+
+        
+        const today = new Date()
+            .toISOString().split('T')[0];
+
+        tbody.innerHTML = data.map(b => {
+            const overdue = b.Due_Date
+                ?.split('T')[0] < today 
+                && b.Status === 'Overdue';
+            return `<tr>
+                <td>
+                    <span class="id-chip">
+                        BOOK-${String(b.Book_ID)
+                            .padStart(4,'0')}
+                    </span>
+                </td>
+                <td style="font-weight:600">
+                    ${b.Book_Title}
+                </td>
+                <td style="color:var(--muted);
+                           font-style:italic">
+                    ${b.Book_Author}
+                </td>
+                <td>${b.Book_Genre}</td>
+                <td>${b.Borrow_Date
+                    ?.split('T')[0] || '—'}
+                </td>
+                <td style="color:${overdue 
+                    ? '#c0392b' : 'inherit'};
+                    font-weight:${overdue 
+                    ? '600' : '400'}">
+                    ${b.Due_Date
+                        ?.split('T')[0] || '—'}
+                    ${overdue ? ' ⚠' : ''}
+                </td>
+                <td>
+                    <span class="status-badge 
+                        ${b.Status === 'Overdue' 
+                            ? 'status-overdue' 
+                            : 'status-borrowed'}">
+                        ${b.Status}
+                    </span>
+                </td>
+            </tr>`;
+        }).join('');
+
+    } catch (err) {
+        console.error('Error loading member books:', err);
+        document.getElementById('memberBooksTable')
+            .innerHTML = `
+            <tr>
+                <td colspan="7" 
+                    style="text-align:center;
+                           padding:2rem;
+                           color:#c0392b">
+                    Error loading books!
+                </td>
+            </tr>`;
+    }
+}
+
+function closeMemberBooksModal() {
+    document.getElementById('memberBooksModal')
+        .classList.remove('open');
+}
+
+init();
+
+  </script>
+ </body>
+ </html> -->
+
+
+
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AlgoReadthm — Library Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet"/>
+  <style>
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --ink: #0B1829;
+  --parch: #F5F0E8;
+  --cream: #ffffff;
+  --amber: #C9A84C;
+  --rust: #112240;
+  --forest: #0B1829;
+  --sage: #1B3A5C;
+  --gold: #C9A84C;
+  --champagne: #F0D98B;
+  --navy-mid: #112240;
+  --navy-light: #1B3A5C;
+  --muted: #4a6080;
+  --line: #d8d2c4;
+  --shadow: rgba(11,24,41,.15);
+}
+
+body {
+  background: #ffffff;
+  color: var(--ink);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: .6;
+}
+
+header {
+  background: var(--forest);
+  color: var(--parch);
+  padding: 0 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 4px solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 24px var(--shadow);
+}
+
+.logo {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 0;
+}
+
+.logo-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--gold);
+  line-height: 1;
+}
+
+.logo-sub {
+  font-size: .8rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #8ea8c8;
+  margin-top: .2rem;
+}
+
+nav {
+  display: flex;
+  gap: .3rem;
+}
+
+nav button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Crimson Pro', serif;
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #8ea8c8;
+  padding: .55rem 1.1rem;
+  border-radius: 3px;
+  transition: background .2s, color .2s;
+}
+
+nav button:hover, nav button.active {
+  background: rgba(201,168,76,.18);
+  color: var(--champagne);
+}
+
+.app {
+  display: flex;
+  min-height: calc(100vh - 68px);
+}
+
+aside {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--parch);
+  border-right: 1px solid var(--line);
+  padding: 1.8rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+aside h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  color: var(--muted);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-style: italic;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: .5rem;
+}
+
+.search-box {
+  position: relative;
+}
+
+.search-box input {
+  width: 100%;
+  padding: .65rem .9rem .65rem 2.4rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--parch);
+  font-family: 'Crimson Pro', serif;
+  font-size: 1rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.search-box input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201,168,76,.12);
+}
+
+.search-box svg {
+  position: absolute;
+  left: .75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+}
+
+.filter-group label {
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.filter-group select {
+  padding: .6rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--parch);
+  font-family: 'Crimson Pro', serif;
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
+  transition: border-color .2s;
+}
+
+.filter-group select:focus {
+  border-color: var(--gold);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .7rem;
+}
+
+.stat-card {
+  background: var(--parch);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: .8rem .7rem;
+  text-align: center;
+  transition: border-color .2s, transform .15s;
+}
+
+.stat-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--navy-light);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: .75rem;
+  color: var(--muted);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-top: .2rem;
+}
+
+main {
+  flex: 1;
+  padding: 2rem 2.5rem;
+  overflow: auto;
+}
+
+.section {
+  display: none;
+  animation: fadeUp .35s ease;
+}
+
+.section.active {
+  display: block;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity:0;
+    transform: translateY(8px);
+  }
+
+to {
+    opacity:1;
+    transform: none;
+  }
+
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.6rem;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: .8rem;
+}
+
+.section-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.section-header span {
+  font-size: .9rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.section-search {
+  margin-bottom: 1.2rem;
+}
+
+.section-search .search-row {
+  display: flex;
+  gap: .8rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.section-search .search-box {
+  flex: 1;
+  min-width: 200px;
+}
+
+.section-search .search-box input {
+  background: #fff;
+}
+
+.section-search .filter-select {
+  padding: .65rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  font-family: 'Crimson Pro', serif;
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
+  transition: border-color .2s;
+  min-width: 140px;
+}
+
+.section-search .filter-select:focus {
+  border-color: var(--gold);
+}
+
+.result-count {
+  font-size: .85rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: .5rem;
+}
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.4rem;
+}
+
+.book-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px var(--shadow);
+  transition: transform .2s, box-shadow .2s;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.book-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 28px var(--shadow);
+}
+
+.book-spine {
+  display: none;
+}
+
+.book-body {
+  padding: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-cover {
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-size: .85rem;
+  font-style: italic;
+  text-align: center;
+  padding: .5rem;
+  color: #fff;
+  margin-bottom: .8rem;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.book-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(255,255,255,.18) 0%, transparent 60%);
+}
+
+.book-title {
+  font-family: 'Playfair Display', serif;
+  font-size: .95rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: .2rem;
+}
+
+.book-author {
+  font-size: .82rem;
+  color: var(--muted);
+  font-style: italic;
+  margin-bottom: .5rem;
+}
+
+.book-genre {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: .18rem .55rem;
+  border-radius: 3px;
+  margin-bottom: .6rem;
+}
+
+.book-actions {
+  display: flex;
+  gap: .5rem;
+  margin-top: auto;
+}
+
+.btn {
+  flex: 1;
+  padding: .45rem .5rem;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Crimson Pro', serif;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .18s, transform .1s;
+  text-align: center;
+}
+
+.btn:active {
+  transform: scale(.97);
+}
+
+.btn-borrow {
+  background: var(--navy-mid);
+  color: var(--champagne);
+}
+
+.btn-borrow:hover {
+  background: var(--navy-light);
+}
+
+.btn-return {
+  background: var(--navy-light);
+  color: var(--champagne);
+}
+
+.btn-return:hover {
+  background: #224870;
+}
+
+.btn-edit {
+  background: var(--line);
+  color: var(--ink);
+}
+
+.btn-edit:hover {
+  background: #c4bfb4;
+}
+
+.btn-del {
+  background: #eef0f4;
+  color: var(--navy-mid);
+}
+
+.btn-del:hover {
+  background: #dde2ec;
+}
+
+.available-badge, .borrowed-badge {
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: .15rem .5rem;
+  border-radius: 20px;
+  display: inline-block;
+}
+
+.available-badge {
+  background: #d4edda;
+  color: #2c6e49;
+}
+
+.borrowed-badge {
+  background: #fde8d8;
+  color: var(--rust);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--muted);
+}
+
+.empty-state svg {
+  opacity: .3;
+  margin-bottom: 1rem;
+}
+
+.empty-state p {
+  font-style: italic;
+  font-size: 1.1rem;
+}
+
+.form-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2rem 2.5rem;
+  max-width: 640px;
+  box-shadow: 0 4px 20px var(--shadow);
+  margin: 0 auto;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+}
+
+.form-full {
+  grid-column: 1 / -1;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.form-group label {
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.form-group input, .form-group select, .form-group textarea {
+  padding: .7rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--parch);
+  font-family: 'Crimson Pro', serif;
+  font-size: 1rem;
+  color: var(--ink);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201,168,76,.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.btn-submit {
+  margin-top: 1.4rem;
+  padding: .8rem 2rem;
+  background: var(--navy-mid);
+  color: var(--champagne);
+  border: none;
+  border-radius: 5px;
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  font-style: italic;
+  cursor: pointer;
+  transition: background .2s, transform .1s;
+  letter-spacing: .04em;
+}
+
+.btn-submit:hover {
+  background: var(--navy-light);
+}
+
+.btn-submit:active {
+  transform: scale(.98);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .97rem;
+}
+
+thead th {
+  background: var(--navy-mid);
+  color: var(--champagne);
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-style: italic;
+  padding: .9rem 1.2rem;
+  text-align: left;
+  letter-spacing: .03em;
+  white-space: nowrap;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--line);
+  transition: background .15s;
+}
+
+tbody tr:hover {
+  background: rgba(201,168,76,.06);
+}
+
+tbody td {
+  padding: .75rem 1.2rem;
+  vertical-align: middle;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: .85rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.member-cell {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+
+.member-name {
+  font-weight: 600;
+}
+
+.member-email {
+  font-size: .82rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  padding: .18rem .6rem;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.status-borrowed {
+  background: #fde8d8;
+  color: #8b3a1c;
+}
+
+.status-returned {
+  background: #d4edda;
+  color: #2c6e49;
+}
+
+.status-overdue {
+  background: #fde8d8;
+  color: #c0392b;
+}
+
+.tab-bar {
+  display: flex;
+  gap: .3rem;
+  margin-bottom: 1.2rem;
+}
+
+.tab-btn {
+  padding: .45rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: none;
+  font-family: 'Crimson Pro', serif;
+  font-size: .9rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.tab-btn:hover {
+  border-color: var(--gold);
+  color: var(--ink);
+}
+
+.tab-btn.active {
+  background: var(--navy-mid);
+  color: var(--champagne);
+  border-color: var(--navy-mid);
+}
+
+.tab-count {
+  display: inline-block;
+  font-size: .72rem;
+  background: rgba(0,0,0,.1);
+  border-radius: 10px;
+  padding: .05rem .45rem;
+  margin-left: .3rem;
+  vertical-align: middle;
+}
+
+.tab-btn.active .tab-count {
+  background: rgba(255,255,255,.2);
+}
+
+.btn-archive {
+  background: #f0ece4;
+  color: var(--muted);
+}
+
+.btn-archive:hover {
+  background: #e2ddd4;
+  color: var(--ink);
+}
+
+.btn-unarchive {
+  background: #dde8f0;
+  color: #1a3a5c;
+}
+
+.btn-unarchive:hover {
+  background: #c8d8e8;
+}
+
+.btn-perm-del {
+  background: #fde8d8;
+  color: #8b3a1c;
+}
+
+.btn-perm-del:hover {
+  background: #f5c4b3;
+}
+
+.btn-action {
+  flex: none;
+  padding: .32rem .75rem;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Crimson Pro', serif;
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .18s, transform .1s;
+  white-space: nowrap;
+}
+
+.btn-action:active {
+  transform: scale(.97);
+}
+
+tr.archived-row {
+  opacity: .65;
+}
+
+.id-chip {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  font-family: 'Crimson Pro', Georgia, serif;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: rgba(26,18,9,.55);
+  backdrop-filter: blur(3px);
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay.open {
+  display: flex;
+}
+
+.modal {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2rem 2.4rem;
+  max-width: 460px;
+  width: 90%;
+  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+  animation: fadeUp .25s ease;
+}
+
+.modal h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: .8rem;
+  margin-top: 1.4rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: .55rem 1.2rem;
+  background: var(--line);
+  color: var(--ink);
+  border: none;
+  border-radius: 4px;
+  font-family: 'Crimson Pro', serif;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.btn-cancel:hover {
+  background: #c4bfb4;
+}
+
+.btn-confirm {
+  padding: .55rem 1.2rem;
+  background: var(--navy-mid);
+  color: var(--champagne);
+  border: none;
+  border-radius: 4px;
+  font-family: 'Crimson Pro', serif;
+  font-size: .95rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.btn-confirm:hover {
+  background: var(--navy-light);
+}
+
+@media (max-width: 768px) {
+  aside {
+    display: none;
+  }
+
+header {
+    padding: 0 1.2rem;
+  }
+
+main {
+    padding: 1.5rem 1.2rem;
+  }
+
+.form-grid {
+    grid-template-columns: 1fr;
+  }
+
+nav button {
+    padding: .55rem .7rem;
+    font-size: .75rem;
+  }
+
+.section-search .search-row {
+    flex-direction: column;
+  }
+
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-title">AlgoReadthm</span>
+    <span class="logo-sub">Library Management System</span>
+  </div>
+  <nav>
+    <button class="active" onclick="showSection('catalog', this)">Catalog</button>
+    <button onclick="showSection('add', this)">Add Book</button>
+    <button onclick="showSection('members', this)">Members</button>
+    <button onclick="showSection('borrowed', this)">Borrowed</button>
+    <button onclick="showSection('history', this)">History</button>
+  </nav>
+</header>
+
+<div class="app">
+  <aside>
+    <div>
+      <h3>Statistics</h3>
+      <div class="stats-grid" style="margin-top:.7rem">
+        <div class="stat-card"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Books</div></div>
+        <div class="stat-card"><div class="stat-num" id="statAvail">0</div><div class="stat-label">Available</div></div>
+        <div class="stat-card"><div class="stat-num" id="statBorr">0</div><div class="stat-label">Borrowed</div></div>
+        <div class="stat-card"><div class="stat-num" id="statMemb">0</div><div class="stat-label">Members</div></div>
+        <div class="stat-card" style="grid-column:1/-1"><div class="stat-num" id="statTx">0</div><div class="stat-label">Transactions</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    
+    <div id="section-catalog" class="section active">
+      <div class="section-header">
+        <h2>Book Catalog</h2>
+      </div>
+      <div class="section-search">
+        <div class="search-row">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="searchInput" placeholder="Title, author, ISBN…" oninput="renderCatalog()"/>
+          </div>
+          <select class="filter-select" id="genreFilter" onchange="renderCatalog()">
+            <option value="">All Genres</option>
+            <option>Fiction</option>
+            <option>Non-Fiction</option>
+            <option>Science</option>
+            <option>History</option>
+            <option>Philosophy</option>
+            <option>Fantasy</option>
+            <option>Mystery</option>
+          </select>
+          <select class="filter-select" id="availFilter" onchange="renderCatalog()">
+            <option value="">All</option>
+            <option value="available">Available</option>
+            <option value="borrowed">Borrowed</option>
+          </select>
+        </div>
+      </div>
+      <div class="book-grid" id="bookGrid"></div>
+    </div>
+
+    
+    <div id="section-add" class="section">
+      <div class="section-header">
+        <h2>Add New Book</h2>
+      </div>
+      <div class="form-card">
+        <div class="form-grid">
+          <div class="form-group form-full">
+            <label>Title *</label>
+            <input type="text" id="f-title" placeholder="The Great Gatsby"/>
+          </div>
+          <div class="form-group">
+            <label>Author *</label>
+            <input type="text" id="f-author" placeholder="F. Scott Fitzgerald"/>
+          </div>
+          <div class="form-group">
+            <label>ISBN</label>
+            <input type="text" id="f-isbn" placeholder="978-…"/>
+          </div>
+          <div class="form-group">
+            <label>Genre</label>
+            <select id="f-genre">
+              <option>Fiction</option>
+              <option>Non-Fiction</option>
+              <option>Science</option>
+              <option>History</option>
+              <option>Philosophy</option>
+              <option>Fantasy</option>
+              <option>Mystery</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Year</label>
+            <input type="number" id="f-year" placeholder="1925" min="1000" max="2099"/>
+          </div>
+        </div>
+        <button class="btn-submit" onclick="addBook()">Add to Catalog</button>
+      </div>
+    </div>
+
+    
+    <div id="section-members" class="section">
+      <div class="section-header">
+        <h2>Members</h2>
+      </div>
+      
+      <div class="form-card" style="max-width:100%; margin-bottom:2rem; display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:1rem; align-items:flex-end;">
+        <div class="form-group">
+          <label>Name *</label>
+          <input type="text" id="m-name" placeholder="Jane Doe"/>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="m-email" placeholder="jane@example.com" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>Contact Number</label>
+          <input type="tel" id="m-contact" placeholder="+63 912 345 6789"/>
+        </div>
+        <div>
+          <button class="btn-submit" style="margin-top:0; width:100%" onclick="addMember()">+ Add Member</button>
+        </div>
+      </div>
+      
+      <div class="section-search">
+        <div class="search-row">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="memberSearch" placeholder="Search by name, email, or contact…" oninput="renderMembers()" autocomplete="off"/>
+          </div>
+          <select class="filter-select" id="memberBooksFilter" onchange="renderMembers()">
+            <option value="">All Members</option>
+            <option value="active">Has Books Out</option>
+            <option value="clear">No Books Out</option>
+          </select>
+        </div>
+        <div class="result-count" id="memberResultCount" style="display:none"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>ID</th>
+              <th>Email</th>
+              <th>Contact</th>
+              <th>Joined</th>
+              <th style="text-align:center">Books Out</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="memberTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    
+    <div id="section-borrowed" class="section">
+      <div class="section-header">
+        <h2>Borrowed Books</h2>
+      </div>
+      
+      <div class="section-search">
+        <div class="search-row">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="borrowedSearch" placeholder="Search by title, author, or borrower…" oninput="renderBorrowed()"/>
+          </div>
+          <select class="filter-select" id="borrowedStatusFilter" onchange="renderBorrowed()">
+            <option value="">All</option>
+            <option value="overdue">Overdue</option>
+            <option value="current">Not Overdue</option>
+          </select>
+        </div>
+        <div class="result-count" id="borrowedResultCount"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Book ID</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Member ID</th>
+              <th>Borrower</th>
+              <th>Borrowed On</th>
+              <th>Due Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="borrowTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+<div class="overlay" id="deleteMemberModal">
+  <div class="modal">
+    <h3>Remove Member</h3>
+    <p style="color:var(--muted)">
+      Are you sure you want to remove 
+      <em id="deleteMemberName"></em> 
+      from the system? This cannot be undone.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-cancel" 
+              onclick="closeDeleteMemberModal()">
+        Cancel
+      </button>
+      <button class="btn-confirm" 
+              style="background:#8b3a1c"
+              onclick="confirmDeleteMember()">
+        Remove
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="memberWarningModal">
+  <div class="modal">
+    <h3 style="color:#8b3a1c">⚠️ Cannot Remove Member</h3>
+    <p style="color:var(--muted); margin-top:.5rem">
+      <em id="memberWarningName"></em> cannot be removed
+      because they currently have borrowed books.
+      Please wait for all books to be returned first.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              style="background:#8b3a1c"
+              onclick="closeMemberWarningModal()">
+        OK, Got it!
+      </button>
+    </div>
+  </div>
+</div>
+    
+    <div id="section-history" class="section">
+      <div class="section-header">
+        <h2>Transaction History</h2>
+      </div>
+      
+      <div class="tab-bar" style="justify-content:space-between;align-items:center">
+        <div style="display:flex;gap:.3rem">
+          <button class="tab-btn active" id="tab-active" onclick="switchHistoryTab('active')">
+            Active <span class="tab-count" id="tabCount-active">0</span>
+          </button>
+          <button class="tab-btn" id="tab-archived" onclick="switchHistoryTab('archived')">
+            Archived <span class="tab-count" id="tabCount-archived">0</span>
+          </button>
+        </div>
+        <button id="deleteAllBtn" class="btn-action btn-perm-del" style="display:none" onclick="openDeleteAllModal()">Delete All</button>
+      </div>
+      
+      <div class="section-search">
+        <div class="search-row">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="historySearch" placeholder="Search by Txn ID, book, member, or date…" oninput="renderHistory()"/>
+          </div>
+          <select class="filter-select" id="historyTypeFilter" onchange="renderHistory()">
+            <option value="">All Transactions</option>
+            <option value="borrowed">Borrowed</option>
+            <option value="returned">Returned</option>
+          </select>
+        </div>
+        <div class="result-count" id="historyResultCount"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Txn ID</th>
+              <th>Book ID</th>
+              <th>Book</th>
+              <th>Member ID</th>
+              <th>Member</th>
+              <th>Borrow Date</th>
+              <th>Return Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="historyTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="overlay" id="borrowModal">
+  <div class="modal">
+    <h3>Borrow Book</h3>
+    <p style="color:var(--muted); font-style:italic; margin-bottom:1rem;" id="borrowModalTitle"></p>
+    <div class="form-group">
+      <label>Select Member</label>
+      <select id="borrowMemberSelect" style="padding:.7rem 1rem; border:1px solid var(--line); border-radius:4px; background:var(--parch); font-family:'Crimson Pro',serif; font-size:1rem;"></select>
+    </div>
+    <div class="form-group" style="margin-top:.9rem">
+      <label>Loan Duration</label>
+      <select id="borrowDuration" style="padding:.7rem 1rem; border:1px solid var(--line); border-radius:4px; background:var(--parch); font-family:'Crimson Pro',serif; font-size:1rem;">
+        <option value="1">1 Day</option>
+        <option value="3">3 Days</option>
+        <option value="7">7 Days</option>
+        <option value="14" selected>14 Days</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeBorrowModal()">Cancel</button>
+      <button class="btn-confirm" style="background:var(--forest)" onclick="confirmBorrow()">Confirm Borrow</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="notifModal">
+  <div class="modal">
+    <h3 id="notifTitle" style="color:#8b3a1c">⚠️ Warning</h3>
+    <p id="notifMessage" 
+       style="color:var(--muted); margin-top:.5rem">
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              id="notifBtn"
+              onclick="closeNotifModal()">
+        OK, Got it!
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="deleteModal">
+  <div class="modal">
+    <h3>Remove Volume</h3>
+    <p style="color:var(--muted)">Are you sure you wish to remove <em id="deleteModalTitle"></em> from the catalog? This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmDelete()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="warningModal">
+  <div class="modal">
+    <h3 style="color:#8b3a1c">⚠️ Cannot Delete Book</h3>
+    <p style="color:var(--muted); margin-top:.5rem">
+      <em id="warningModalTitle"></em> cannot be deleted
+      because it is currently borrowed by a member.
+      Please wait for the book to be returned first.
+    </p>
+    <div class="modal-actions">
+      <button class="btn-confirm" 
+              onclick="closeWarningModal()">
+        OK, Got it!
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="permDeleteModal">
+  <div class="modal">
+    <h3>Permanently Delete Record</h3>
+    <p style="color:var(--muted)">This will permanently remove transaction <em id="permDeleteTxId"></em> from the system. This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closePermDeleteModal()">Cancel</button>
+      <button class="btn-confirm" style="background:#8b3a1c" onclick="confirmPermDelete()">Delete Permanently</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="deleteAllModal">
+  <div class="modal">
+    <h3>Delete All Archived Records</h3>
+    <p style="color:var(--muted)">This will permanently remove all <strong id="deleteAllCount">0</strong> archived transaction records. This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeDeleteAllModal()">Cancel</button>
+      <button class="btn-confirm" style="background:#8b3a1c" onclick="confirmDeleteAll()">Delete All</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="memberBooksModal">
+  <div class="modal" style="max-width:700px">
+    <h3 style="font-family:'Playfair Display',serif">
+      📚 Borrowed Books
+    </h3>
+    <p style="color:var(--muted);font-style:italic;
+              margin-top:.3rem;margin-bottom:1rem"
+       id="memberBooksName">
+    </p>
+
+    
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Book ID</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Genre</th>
+            <th>Borrow Date</th>
+            <th>Due Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="memberBooksTable">
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              onclick="closeMemberBooksModal()">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const API = 'http://localhost:3000/api';
+
+const COLORS = [
+  ['#2c4a2e','#d4a017'],['#8b3a1c','#f5edd8'],['#1a3a5c','#e8c87a'],
+  ['#4a2c5e','#d4a017'],['#1d3d2b','#c8e0c0'],['#5c3317','#f0d9a0'],
+  ['#2a4858','#88c0c8'],['#4a3520','#e8d5b0'],['#3b1f2b','#e8aac0']
+];
+const MEMBER_COLORS = [
+  '#2c4a2e','#8b3a1c','#1a3a5c',
+  '#4a2c5e','#5c3317','#2a4858'
+];
+
+let books            = [];
+let members          = [];
+let history          = [];
+let nextHistoryId    = 1;
+let pendingBorrowId  = null;
+let pendingDeleteId  = null;
+let pendingPermDeleteId = null;
+let historyTab       = 'active';
+
+let pendingDeleteMemberId = null;
+
+async function loadBooks() {
+    try {
+        const res  = await fetch(`${API}/books`);
+        const data = await res.json();
+        books = data.map((b, i) => ({
+            id       : b.Book_ID,
+            title    : b.Title,
+            author   : b.Author,
+            isbn     : b.Isbn,
+            genre    : b.Genre,
+            year     : b.Year,
+            color    : i % COLORS.length
+        }));
+        updateStats();
+    } catch (err) {
+        console.error('Error loading books:', err);
+    }
+}
+
+async function loadMembers() {
+    try {
+        const res  = await fetch(`${API}/members`);
+        const data = await res.json();
+        members = data.map((m, i) => ({
+            id     : m.Member_ID,
+            name   : m.Name,
+            email  : m.Email,
+            contact: m.Contact_Number,
+            joined : m.Date_Joined
+                       ? m.Date_Joined.split('T')[0]
+                       : '',
+            color  : MEMBER_COLORS[i % MEMBER_COLORS.length]
+        }));
+        renderMembers();
+        updateStats();
+    } catch (err) {
+        console.error('Error loading members:', err);
+    }
+}
+
+async function loadTransactions() {
+    try {
+        const res  = await fetch(`${API}/transactions`);
+        const data = await res.json();
+        history = data.map(t => ({
+            id         : t.Transaction_ID,
+            bookId     : t.Book_ID,
+            bookTitle  : t.Title,
+            memberId   : t.Member_ID,
+            memberName : t.Name,
+            borrowDate : t.Borrow_Date
+                           ? t.Borrow_Date.split('T')[0]
+                           : '',
+            dueDate    : t.Due_Date
+                           ? t.Due_Date.split('T')[0]
+                           : '',
+            returnDate : t.Return_Date
+                           ? t.Return_Date.split('T')[0]
+                           : null,
+            status     : t.Status.toLowerCase(),
+            is_archived: false
+        }));
+        renderHistory();
+        updateStats();
+    } catch (err) {
+        console.error('Error loading transactions:', err);
+    }
+}
+
+async function loadBorrowed() {
+    try {
+        const res  = await fetch(`${API}/transactions/borrowed`);
+        const data = await res.json();
+        books = books.map(b => ({
+            ...b,
+            borrowed  : data.some(t => t.Book_ID === b.id),
+            borrowedBy: data.find(t => t.Book_ID === b.id)
+                          ?.Member_ID || null,
+            borrowDate: data.find(t => t.Book_ID === b.id)
+                          ?.Borrow_Date?.split('T')[0] || null,
+            dueDate   : data.find(t => t.Book_ID === b.id)
+                          ?.Due_Date?.split('T')[0] || null
+        }));
+        renderCatalog();
+        renderBorrowed();
+        updateStats();
+    } catch (err) {
+        console.error('Error loading borrowed:', err);
+    }
+}
+
+async function init() {
+    await loadBooks();
+    await loadMembers();
+    await loadTransactions();
+    await loadBorrowed();
+}
+
+function showSection(name, btn) {
+  document.querySelectorAll('.section')
+    .forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button')
+    .forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + name)
+    .classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'catalog')  renderCatalog();
+  if (name === 'members')  renderMembers();
+  if (name === 'borrowed') renderBorrowed();
+  if (name === 'history')  renderHistory();
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('statTotal').textContent = books.length;
+  document.getElementById('statAvail').textContent = books.filter(b => !b.borrowed).length;
+  document.getElementById('statBorr').textContent  = books.filter(b => b.borrowed).length;
+  document.getElementById('statMemb').textContent  = members.length;
+  document.getElementById('statTx').textContent    = history.filter(h => !h.is_archived).length;
+}
+
+function renderCatalog() {
+  const q     = document.getElementById('searchInput').value.toLowerCase();
+  const genre = document.getElementById('genreFilter').value;
+  const avail = document.getElementById('availFilter').value;
+
+  let filtered = books.filter(b => {
+    const matchQ = !q || b.title.toLowerCase().includes(q) 
+                      || b.author.toLowerCase().includes(q) 
+                      || (b.isbn && b.isbn.includes(q));
+    const matchG = !genre || b.genre === genre;
+    const matchA = !avail || (avail === 'available' ? !b.borrowed : b.borrowed);
+    return matchQ && matchG && matchA;
+  });
+
+  const grid = document.getElementById('bookGrid');
+
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <p>No volumes match your search.</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(b => {
+    const [bg, fg] = COLORS[b.color % COLORS.length];
+    const genreColors = {
+      Fiction      : '#d4edda:#2c6e49',
+      'Non-Fiction': '#dde8f0:#1a3a5c',
+      Science      : '#e8f4e8:#2c6e49',
+      History      : '#fde8d8:#8b3a1c',
+      Philosophy   : '#ede8f5:#4a2c5e',
+      Fantasy      : '#e8e0f5:#4a2c5e',
+      Mystery      : '#f5e0e0:#8b1c1c'
+    };
+    const [gbg, gfg] = (genreColors[b.genre] || '#f0ece4:#7a6a50').split(':');
+    const borrower = b.borrowed 
+      ? members.find(m => m.id === b.borrowedBy) 
+      : null;
+    return `<div class="book-card">
+      <div class="book-body">
+        <div class="book-cover" 
+             style="background:linear-gradient(135deg,${bg},${bg}cc)">
+          <span style="color:${fg};font-size:.9rem;line-height:1.3">
+            ${b.title}
+          </span>
+        </div>
+        <div class="book-title">${b.title}</div>
+        <div class="book-author">${b.author} · ${b.year}</div>
+        <div class="book-author" 
+             style="margin-top:-.2rem;margin-bottom:.4rem;
+                    font-size:.75rem;letter-spacing:.03em">
+          BOOK-${String(b.id).padStart(4,'0')}
+        </div>
+        <span class="book-genre" 
+              style="background:${gbg};color:${gfg}">
+          ${b.genre}
+        </span><br>
+        ${b.borrowed
+          ? `<span class="borrowed-badge">
+               Borrowed${borrower 
+                 ? ' by ' + borrower.name.split(' ')[0] 
+                 : ''}
+             </span>`
+          : `<span class="available-badge">Available</span>`}
+        <div class="book-actions" style="margin-top:.7rem">
+          ${b.borrowed
+            ? ``
+            : `<button class="btn btn-borrow" 
+                       onclick="openBorrowModal(${b.id})">
+                 Borrow
+               </button>`}
+          <button class="btn btn-del" 
+                  onclick="openDeleteModal(${b.id})">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  updateStats();
+}
+
+async function addBook() {
+    
+    const title  = document.getElementById('f-title').value.trim();
+    const author = document.getElementById('f-author').value.trim();
+    const isbn   = document.getElementById('f-isbn').value.trim();
+    const genre  = document.getElementById('f-genre').value;
+    const year   = document.getElementById('f-year').value.trim();
+
+    
+    if (!title) {
+        openNotifModal('Error', 'Title is required!', 'error');
+        return;
+    }
+    if (!author) {
+        openNotifModal('Error', 'Author is required!', 'error');
+        return;
+    }
+    if (!genre) {
+        openNotifModal('Error', 'Please select a genre!', 'error');
+        return;
+    }
+    if (!year) {
+        openNotifModal('Error', 'Year is required!', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API}/books`, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Title : title,
+                Author: author,
+                Isbn  : isbn,
+                Genre : genre,
+                Year  : parseInt(year)
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'error') {
+            openNotifModal('Error', result.message, 'error');
+            return;
+        }
+
+        
+        openNotifModal('Book Added', title + ' has been added!', 'success');
+        ['f-title','f-author','f-isbn','f-year']
+            .forEach(id => document.getElementById(id).value = '');
+        await loadBooks();
+        await loadBorrowed();
+
+    } catch (err) {
+        console.error('Error adding book:', err);
+        openNotifModal('Error', 'Something went wrong!', 'error');
+    }
+}
+
+function openBorrowModal(id) {
+  pendingBorrowId = id;
+  const book = books.find(b => b.id === id);
+  document.getElementById('borrowModalTitle').textContent = '"' + book.title + '"';
+  const sel = document.getElementById('borrowMemberSelect');
+  sel.innerHTML = members.map(m => 
+    `<option value="${m.id}">${m.name}</option>`
+  ).join('');
+  document.getElementById('borrowModal').classList.add('open');
+}
+
+function closeBorrowModal() {
+  document.getElementById('borrowModal').classList.remove('open');
+  pendingBorrowId = null;
+}
+
+async function confirmBorrow() {
+    const memberId = parseInt(
+        document.getElementById('borrowMemberSelect').value
+    );
+    const loanDays = parseInt(
+        document.getElementById('borrowDuration').value
+    );
+    const today   = new Date().toISOString().split('T')[0];
+    const dueDate = new Date(
+        new Date(today).getTime() + loanDays * 864e5
+    ).toISOString().split('T')[0];
+    try {
+        await fetch(`${API}/transactions/borrow`, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Book_ID    : pendingBorrowId,
+                Member_ID  : memberId,
+                Borrow_Date: today,
+                Due_Date   : dueDate
+            })
+        });
+        closeBorrowModal();
+        await loadBooks();
+        await loadTransactions();
+        await loadBorrowed();
+        await renderCatalog();
+    } catch (err) {
+        console.error('Error borrowing book:', err);
+    }
+}
+
+async function returnBook(id) {
+    try {
+        const tx = history.find(
+            h => h.bookId === id && h.status === null
+        );
+        if (!tx) { return; }
+        await fetch(`${API}/transactions/return/${tx.id}`, {
+            method: 'POST'
+        });
+        await loadBooks();
+        await loadTransactions();
+        await loadBorrowed();
+    } catch (err) {
+        console.error('Error returning book:', err);
+    }
+}
+
+function openDeleteModal(id) {
+  pendingDeleteId = id;
+  const book = books.find(b => b.id === id);
+  document.getElementById('deleteModalTitle').textContent = book.title;
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+  pendingDeleteId = null;
+}
+
+function openNotifModal(title, message, type) {
+    const titleEl   = document.getElementById('notifTitle');
+    const messageEl = document.getElementById('notifMessage');
+    const btnEl     = document.getElementById('notifBtn');
+
+    
+    titleEl.textContent   = title;
+    messageEl.textContent = message;
+
+    
+    if (type === 'error') {
+        titleEl.style.color = '#8b3a1c';
+        btnEl.style.background = '#8b3a1c';
+    } else if (type === 'success') {
+        titleEl.style.color = '#2c6e49';
+        btnEl.style.background = '#2c6e49';
+    } else if (type === 'warning') {
+        titleEl.style.color = '#C9A84C';
+        btnEl.style.background = '#C9A84C';
+    }
+
+    document.getElementById('notifModal')
+        .classList.add('open');
+}
+
+function closeNotifModal() {
+    document.getElementById('notifModal')
+        .classList.remove('open');
+}
+
+async function confirmDelete() {
+    try {
+        
+        const book = books.find(b => b.id === pendingDeleteId);
+
+        const response = await fetch(
+            `${API}/books/${pendingDeleteId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        
+        if (!response.ok) {
+            
+            closeDeleteModal();
+            
+            openWarningModal(book ? book.title : 'This book');
+            return;
+        }
+
+        closeDeleteModal();
+        await loadBooks();
+        await loadTransactions();
+        await loadBorrowed();
+
+    } catch (err) {
+        console.error('Error deleting book:', err);
+        closeDeleteModal();
+        openWarningModal('This book');
+    }
+}
+
+function openWarningModal(bookTitle) {
+    document.getElementById('warningModalTitle')
+        .textContent = '"' + bookTitle + '"';
+    document.getElementById('warningModal')
+        .classList.add('open');
+}
+
+function closeWarningModal() {
+    document.getElementById('warningModal')
+        .classList.remove('open');
+}
+
+async function addMember() {
+    const name    = document.getElementById('m-name').value.trim();
+    const email   = document.getElementById('m-email').value.trim();
+    const contact = document.getElementById('m-contact').value.trim();
+
+    
+    if (!name) {
+        openNotifModal(
+            '⚠️ Name Required',
+            'Please enter a member name!',
+            'error'
+        );
+        return;
+    }
+
+    
+    
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!nameRegex.test(name)) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name must contain letters only! No numbers, email or contact number allowed.',
+            'error'
+        );
+        return;
+    }
+
+    
+    if (name.includes('@')) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name cannot contain an email address!',
+            'error'
+        );
+        return;
+    }
+
+    
+    const hasNumbers = /\d/;
+    if (hasNumbers.test(name)) {
+        openNotifModal(
+            '⚠️ Invalid Name',
+            'Name cannot contain numbers or a contact number!',
+            'error'
+        );
+        return;
+    }
+
+    
+    if (!email && !contact) {
+        openNotifModal(
+            '⚠️ Contact information is required',
+            'Please enter an email address or contact number!',
+            'error'
+        );
+        return;
+    }
+
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if (email && !emailRegex.test(email)) {
+    openNotifModal(
+        '⚠️ Invalid Email',
+        'Please enter a valid email! Example: john@email.com',
+        'error'
+    );
+    return;
+}
+
+    
+    const contactRegex = /^[0-9+\s\-]{7,15}$/;
+if (contact && !contactRegex.test(contact)) {
+    openNotifModal(
+        '⚠️ Invalid Contact Number',
+        'Please enter a valid contact number! Example: 09123456789',
+        'error'
+    );
+    return;
+}
+
+    
+    const hasLetters = /[a-zA-Z]/;
+    if (hasLetters.test(contact)) {
+        openNotifModal(
+            '⚠️ Invalid Contact Number',
+            'Contact number cannot contain letters!',
+            'error'
+        );
+        return;
+    }
+
+    
+    
+    try {
+        const response = await fetch(`${API}/members`, {
+            method : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Name          : name,
+                Email         : email,
+                Contact_Number: contact
+            })
+        });
+
+        const result = await response.json();
+
+        
+        if (result.status === 'error') {
+            openNotifModal(
+                '⚠️ Cannot Add Member',
+                result.message,
+                'error'
+            );
+            return;
+        }
+
+        
+        openNotifModal(
+            'Member Added',
+            `${name} has been successfully added!`,
+            'success'
+        );
+
+        
+        ['m-name', 'm-email', 'm-contact']
+            .forEach(id => 
+                document.getElementById(id).value = '');
+
+        
+        await loadMembers();
+
+    } catch (err) {
+        console.error('Error adding member:', err);
+        openNotifModal(
+            'Error',
+            'Something went wrong! Please try again.',
+            'error'
+        );
+    }
+}
+
+function removeMember(id) {
+    
+    openDeleteMemberModal(id);
+}
+
+async function confirmDeleteMember() {
+    const member = members.find(
+        m => m.id === pendingDeleteMemberId
+    );
+
+    
+    const hasBorrowed = books.some(
+        b => b.borrowedBy === pendingDeleteMemberId 
+          && b.borrowed
+    );
+
+    
+    if (hasBorrowed) {
+        closeDeleteMemberModal();
+        openMemberWarningModal(
+            member ? member.name : 'This member'
+        );
+        return;
+    }
+
+    
+    try {
+        const response = await fetch(
+            `${API}/members/${pendingDeleteMemberId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        
+        if (!response.ok) {
+            closeDeleteMemberModal();
+            openMemberWarningModal(
+                member ? member.name : 'This member'
+            );
+            return;
+        }
+
+        
+        closeDeleteMemberModal();
+        openNotifModal(
+            'Member Removed',
+            `${member ? member.name : 'Member'} has been successfully removed!`,
+            'success'
+        );
+        await loadMembers();
+
+    } catch (err) {
+        console.error('Error removing member:', err);
+        closeDeleteMemberModal();
+        openNotifModal(
+            'Error',
+            'Something went wrong! Please try again.',
+            'error'
+        );
+    }
+}
+
+function openDeleteMemberModal(id) {
+    pendingDeleteMemberId = id;
+    const member = members.find(m => m.id === id);
+    document.getElementById('deleteMemberName')
+        .textContent = '"' + member.name + '"';
+    document.getElementById('deleteMemberModal')
+        .classList.add('open');
+}
+
+function closeDeleteMemberModal() {
+    document.getElementById('deleteMemberModal')
+        .classList.remove('open');
+    pendingDeleteMemberId = null;
+}
+
+function openMemberWarningModal(memberName) {
+    document.getElementById('memberWarningName')
+        .textContent = '"' + memberName + '"';
+    document.getElementById('memberWarningModal')
+        .classList.add('open');
+}
+
+function closeMemberWarningModal() {
+    document.getElementById('memberWarningModal')
+        .classList.remove('open');
+}
+
+function renderMembers() {
+  const q = (document.getElementById('memberSearch').value || '').toLowerCase();
+  const booksFilter = document.getElementById('memberBooksFilter').value;
+
+  let filtered = members.filter(m => {
+    const matchQ = !q 
+      || m.name.toLowerCase().includes(q) 
+      || m.email.toLowerCase().includes(q) 
+      || (m.contact && m.contact.includes(q));
+    const booksOut = books.filter(b => b.borrowed && b.borrowedBy === m.id).length;
+    const matchB = !booksFilter ||
+      (booksFilter === 'active' && booksOut > 0) ||
+      (booksFilter === 'clear'  && booksOut === 0);
+    return matchQ && matchB;
+  });
+
+  const tbody = document.getElementById('memberTable');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7" 
+      style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">
+      No members match your search.</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = filtered.map(m => {
+    const booksOut = books.filter(
+        b => b.borrowed && b.borrowedBy === m.id
+    ).length;
+    return `<tr>
+      <td style="font-weight:600">${m.name}</td>
+      <td><span class="id-chip">
+          MBR-${String(m.id).padStart(4,'0')}
+      </span></td>
+      <td style="color:var(--muted);font-style:italic">
+          ${m.email || '—'}
+      </td>
+      <td>${m.contact || '—'}</td>
+      <td>${m.joined}</td>
+      <td style="text-align:center">
+        <span style="font-weight:600;
+                     color:${booksOut > 0 
+                         ? 'var(--rust)' 
+                         : 'var(--forest)'}">
+          ${booksOut}
+        </span>
+      </td>
+      <td>
+        <div style="display:flex;gap:.4rem">
+          
+          <button class="btn-action btn-edit"
+                  onclick="openMemberBooksModal(${m.id})">
+            View
+          </button>
+          
+          <button class="btn-action btn-del" 
+                  onclick="removeMember(${m.id})">
+            Remove
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBorrowed() {
+  const q      = (document.getElementById('borrowedSearch').value || '').toLowerCase();
+  const filter = document.getElementById('borrowedStatusFilter').value;
+  const today  = new Date().toISOString().split('T')[0];
+
+  let borrowed = books.filter(b => b.borrowed);
+  let filtered = borrowed.filter(b => {
+    const member  = members.find(m => m.id === b.borrowedBy);
+    const dueDate = b.dueDate || '';
+    const overdue = dueDate && dueDate < today;
+    const matchQ  = !q 
+      || b.title.toLowerCase().includes(q) 
+      || b.author.toLowerCase().includes(q) 
+      || (member && member.name.toLowerCase().includes(q)) 
+      || (b.borrowDate && b.borrowDate.includes(q));
+    const matchF  = !filter 
+      || (filter === 'overdue' && overdue) 
+      || (filter === 'current' && !overdue);
+    return matchQ && matchF;
+  });
+
+  const tbody = document.getElementById('borrowTable');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="8" 
+      style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">
+      ${borrowed.length ? 'No records match your search.' : 'All books are currently available.'}
+      </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(b => {
+    const member  = members.find(m => m.id === b.borrowedBy);
+    const dueDate = b.dueDate || '—';
+    const overdue = dueDate !== '—' && dueDate < today;
+    return `<tr>
+      <td><span class="id-chip">BOOK-${String(b.id).padStart(4,'0')}</span></td>
+      <td style="font-weight:600">${b.title}</td>
+      <td style="font-style:italic;color:var(--muted)">${b.author}</td>
+      <td><span class="id-chip">MBR-${String(b.borrowedBy).padStart(4,'0')}</span></td>
+      <td>${member ? member.name : '—'}</td>
+      <td>${b.borrowDate || '—'}</td>
+      <td style="color:${overdue?'#c0392b':'inherit'};font-weight:${overdue?'600':'400'}">
+        ${dueDate}${overdue?' ⚠':''}
+      </td>
+      <td><button class="btn-action btn-return" 
+                  onclick="returnBook(${b.id})">Return</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function switchHistoryTab(tab) {
+  historyTab = tab;
+  document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+  document.getElementById('tab-archived').classList.toggle('active', tab === 'archived');
+  document.getElementById('deleteAllBtn').style.display = tab === 'archived' ? 'inline-block' : 'none';
+  document.getElementById('historySearch').value = '';
+  document.getElementById('historyTypeFilter').value = '';
+  renderHistory();
+}
+
+function renderHistory() {
+  const q      = (document.getElementById('historySearch').value || '').toLowerCase();
+  const filter = document.getElementById('historyTypeFilter').value;
+
+  const activeList   = history.filter(h => !h.is_archived);
+  const archivedList = history.filter(h =>  h.is_archived);
+
+  document.getElementById('tabCount-active').textContent   = activeList.length;
+  document.getElementById('tabCount-archived').textContent = archivedList.length;
+
+  const pool = historyTab === 'active' ? activeList : archivedList;
+
+  let filtered = pool.filter(h => {
+    const txId = 'TX-' + String(h.id).padStart(6,'0');
+    const matchQ = !q
+      || h.bookTitle.toLowerCase().includes(q)
+      || h.memberName.toLowerCase().includes(q)
+      || h.borrowDate.includes(q)
+      || (h.returnDate && h.returnDate.includes(q))
+      || txId.toLowerCase().includes(q);
+    const matchF = !filter || h.status === filter;
+    return matchQ && matchF;
+  });
+
+  filtered = [...filtered].reverse();
 
   const tbody = document.getElementById('historyTable');
   const emptyMsg = historyTab === 'active'
