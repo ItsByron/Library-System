@@ -96,7 +96,7 @@ router.post('/', (req, res) => {
             .split('T')[0];
 
         db.query(
-            'CALL sp_AddMember(?, ?, ?, ?)',
+            'CALL sp_AddMember(?, ?, ?, ?, ?)',
             [Name, Email, Contact_Number, Date_Joined],
             (err, results) => {
                 if (err) {
