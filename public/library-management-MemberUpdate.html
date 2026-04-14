@@ -5890,6 +5890,8 @@ nav button {
 
 }
 
+
+
 </style>
 </head>
 <body>
@@ -6107,6 +6109,49 @@ nav button {
               onclick="confirmDeleteMember()">
         Remove
       </button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="editBookModal">
+  <div class="modal">
+    <h3>Edit Book</h3>
+
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" id="edit-title">
+    </div>
+
+    <div class="form-group">
+      <label>Author</label>
+      <input type="text" id="edit-author">
+    </div>
+
+    <div class="form-group">
+      <label>ISBN</label>
+      <input type="text" id="edit-isbn">
+    </div>
+
+    <div class="form-group">
+      <label>Genre</label>
+      <select id="edit-genre">
+        <option>Fiction</option>
+        <option>Non-Fiction</option>
+        <option>Science</option>
+        <option>History</option>
+        <option>Philosophy</option>
+        <option>Fantasy</option>
+        <option>Mystery</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Year</label>
+      <input type="number" id="edit-year">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-confirm" onclick="updateBook()">Save</button>
     </div>
   </div>
 </div>
@@ -6520,16 +6565,24 @@ function renderCatalog() {
                  : ''}
              </span>`
           : `<span class="available-badge">Available</span>`}
-        <div class="book-actions" style="margin-top:.7rem">
-          ${b.borrowed
-            ? ``
-            : `<button class="btn btn-borrow" 
-                       onclick="openBorrowModal(${b.id})">
-                 Borrow
-               </button>`}
-          <button class="btn btn-del" 
-                  onclick="openDeleteModal(${b.id})">✕</button>
-        </div>
+          <div class="book-actions" style="margin-top:.7rem">
+            ${b.borrowed
+              ? ``
+              : `<button class="btn btn-borrow" 
+                        onclick="openBorrowModal(${b.id})">
+                  Borrow
+                </button>`}
+
+            <button class="btn btn-edit" 
+                    onclick="openEditModal(${b.id})">
+              Edit
+            </button>
+
+            <button class="btn btn-del" 
+                    onclick="openDeleteModal(${b.id})">
+              ✕
+            </button>
+          </div>
       </div>
     </div>`;
   }).join('');
@@ -6665,6 +6718,73 @@ function openDeleteModal(id) {
   const book = books.find(b => b.id === id);
   document.getElementById('deleteModalTitle').textContent = book.title;
   document.getElementById('deleteModal').classList.add('open');
+}
+
+let editingBookId = null;
+function openEditModal(id) {
+
+    // Find book
+    const book = books.find(b => b.id === id);
+
+    if (!book) return;
+
+    // Save ID
+    editingBookId = id;
+
+    // Fill inputs
+    document.getElementById('edit-title').value  = book.title || '';
+    document.getElementById('edit-author').value = book.author || '';
+    document.getElementById('edit-isbn').value   = book.isbn || '';
+    document.getElementById('edit-genre').value  = book.genre || '';
+    document.getElementById('edit-year').value   = book.year || '';
+
+    // Show modal
+    document.getElementById('editBookModal').classList.add('open');
+}
+
+function closeEditModal() {
+    document.getElementById('editBookModal').classList.remove('open');
+}
+
+
+async function updateBook() {
+
+    const title  = document.getElementById('edit-title').value.trim();
+    const author = document.getElementById('edit-author').value.trim();
+    const isbn   = document.getElementById('edit-isbn').value.trim();
+    const genre  = document.getElementById('edit-genre').value;
+    const year   = document.getElementById('edit-year').value;
+
+    try {
+        const response = await fetch(`${API}/books`, {
+            method : 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Book_ID: editingBookId,
+                Title  : title,
+                Author : author,
+                Isbn   : isbn,
+                Genre  : genre,
+                Year   : year
+            })
+        });
+
+        const result = await response.json();
+
+        openNotifModal(
+            'Book Updated',
+            'Book updated successfully!',
+            'success'
+        );
+
+        closeEditModal();
+        await loadBooks();
+        await loadBorrowed();
+
+    } catch (err) {
+        console.error(err);
+        openNotifModal('Error', 'Update failed!', 'error');
+    }
 }
 
 function closeDeleteModal() {
