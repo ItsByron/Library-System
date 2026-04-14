@@ -1327,79 +1327,142 @@ nav button {
   </div>
 </div>
 
-<div class="overlay" id="editMemberModal">
-  <div class="modal">
-    <h3>Edit Member</h3>
+<div class="overlay" id="editMemberModal" style="z-index:9999">
+  <div class="modal" style="max-width:460px;padding:0;border-radius:12px;overflow:hidden">
 
-    <div class="form-group">
-      <label>Name</label>
-      <input type="text" id="edit-name">
+    <!-- Header -->
+    <div style="background:var(--dark);padding:1.2rem 1.6rem;display:flex;align-items:center;gap:.6rem">
+      <span style="font-size:1.2rem">✏️</span>
+      <h3 style="font-family:'Playfair Display',serif;color:var(--gold);margin:0;font-size:1.15rem">
+        Edit Member
+      </h3>
     </div>
 
-    <div class="form-group">
-      <label>Email</label>
-      <input type="text" id="edit-email">
+    <!-- Body -->
+    <div style="padding:1.4rem 1.6rem;display:flex;flex-direction:column;gap:1rem">
+
+      <div class="form-group" style="margin:0">
+        <label style="font-size:.7rem;font-weight:700;letter-spacing:.08em;color:var(--dark);text-transform:uppercase;display:block;margin-bottom:.4rem">
+          Name
+        </label>
+        <input type="text" id="edit-name"
+               style="width:100%;box-sizing:border-box;padding:.6rem .85rem;border:1.5px solid var(--border);
+                      border-radius:7px;font-size:.95rem;font-family:inherit;background:var(--bg);
+                      color:var(--text);outline:none;transition:border-color .2s"
+               onfocus="this.style.borderColor='var(--dark)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label style="font-size:.7rem;font-weight:700;letter-spacing:.08em;color:var(--dark);text-transform:uppercase;display:block;margin-bottom:.4rem">
+          Email
+        </label>
+        <input type="text" id="edit-email"
+               style="width:100%;box-sizing:border-box;padding:.6rem .85rem;border:1.5px solid var(--border);
+                      border-radius:7px;font-size:.95rem;font-family:inherit;background:var(--bg);
+                      color:var(--text);outline:none;transition:border-color .2s"
+               onfocus="this.style.borderColor='var(--dark)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label style="font-size:.7rem;font-weight:700;letter-spacing:.08em;color:var(--dark);text-transform:uppercase;display:block;margin-bottom:.4rem">
+          Contact
+        </label>
+        <input type="text" id="edit-contact"
+               style="width:100%;box-sizing:border-box;padding:.6rem .85rem;border:1.5px solid var(--border);
+                      border-radius:7px;font-size:.95rem;font-family:inherit;background:var(--bg);
+                      color:var(--text);outline:none;transition:border-color .2s"
+               onfocus="this.style.borderColor='var(--dark)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+
     </div>
 
-    <div class="form-group">
-      <label>Contact</label>
-      <input type="text" id="edit-contact">
+    <!-- Footer -->
+    <div style="padding:.9rem 1.6rem 1.3rem;display:flex;justify-content:flex-end;gap:.65rem;border-top:1px solid var(--border)">
+      <button onclick="closeEditMemberModal()"
+              style="background:transparent;color:var(--text);border:1.5px solid var(--border);
+                     padding:.45rem 1.1rem;border-radius:6px;font-weight:600;font-size:.85rem;
+                     cursor:pointer;font-family:inherit;transition:background .2s"
+              onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='transparent'">
+        Cancel
+      </button>
+      <button onclick="updateMember()"
+              style="background:var(--dark);color:var(--gold);border:1.5px solid var(--gold);
+                     padding:.45rem 1.2rem;border-radius:6px;font-weight:700;font-size:.85rem;
+                     cursor:pointer;font-family:inherit;transition:opacity .2s"
+              onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        💾 Save Changes
+      </button>
     </div>
 
-    <div class="modal-actions">
-      <button onclick="closeEditMemberModal()">Cancel</button>
-      <button onclick="updateMember()">Save</button>
-    </div>
   </div>
 </div>
 
 <div class="overlay" id="memberBooksModal">
-  <div class="modal" style="max-width:700px">
-    <h3 style="font-family:'Playfair Display',serif">
-      📚 Borrowed Books
-    </h3>
-    <div class="modal-actions">
-      <button class="btn-confirm"
-              onclick="openEditMemberModal()">
-        Edit Member
+  <div class="modal" style="max-width:820px;padding:0;border-radius:12px;overflow:hidden">
+
+    <!-- Modal Header -->
+    <div style="background:var(--dark);padding:1.4rem 1.8rem;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:.75rem">
+        <span style="font-size:1.5rem">📚</span>
+        <div>
+          <h3 style="font-family:'Playfair Display',serif;color:var(--gold);margin:0;font-size:1.25rem">
+            Borrowed Books
+          </h3>
+          <p id="memberBooksName"
+             style="color:rgba(255,255,255,0.55);font-size:.8rem;margin:0;font-style:italic">
+          </p>
+        </div>
+      </div>
+      <button onclick="openEditMemberModal()"
+              style="background:var(--gold);color:var(--dark);border:none;padding:.45rem 1rem;
+                     border-radius:6px;font-weight:700;font-size:.8rem;cursor:pointer;
+                     font-family:inherit;letter-spacing:.05em;transition:opacity .2s"
+              onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+        ✏️ Edit Member
       </button>
     </div>
-    <p style="color:var(--muted);font-style:italic;
-              margin-top:.3rem;margin-bottom:1rem"
-       id="memberBooksName">
-    </p>
 
-    
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Book ID</th>
-            <th>Title</th>
-            <th>Author</th>
-            <th>Genre</th>
-            <th>Borrow Date</th>
-            <th>Due Date</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="memberBooksTable">
-        </tbody>
-      </table>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn-confirm"
-              onclick="closeMemberBooksModal()">
-        Close
-      </button>
-      <div class="modal-actions">
-        <button class="btn-confirm"
-                onclick="toggleMemberStatus()">
-        Change Status
-        </button>
+    <!-- Table Area -->
+    <div style="padding:1.2rem 1.8rem">
+      <div class="table-wrap" style="border-radius:8px;overflow:hidden;border:1px solid var(--border)">
+        <table style="width:100%">
+          <thead>
+            <tr>
+              <th style="width:110px">Book ID</th>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Genre</th>
+              <th>Borrow Date</th>
+              <th>Due Date</th>
+              <th style="width:100px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="memberBooksTable">
+          </tbody>
+        </table>
       </div>
     </div>
+
+    <!-- Modal Footer -->
+    <div style="padding:.9rem 1.8rem 1.4rem;display:flex;justify-content:flex-end;gap:.75rem;
+                border-top:1px solid var(--border)">
+      <button onclick="closeMemberBooksModal()"
+              style="background:transparent;color:var(--text);border:1.5px solid var(--border);
+                     padding:.45rem 1.2rem;border-radius:6px;font-weight:600;font-size:.85rem;
+                     cursor:pointer;font-family:inherit;transition:all .2s"
+              onmouseover="this.style.background='var(--border)'" onmouseout="this.style.background='transparent'">
+        Close
+      </button>
+      <button onclick="toggleMemberStatus()"
+              style="background:var(--dark);color:var(--gold);border:1.5px solid var(--gold);
+                     padding:.45rem 1.2rem;border-radius:6px;font-weight:700;font-size:.85rem;
+                     cursor:pointer;font-family:inherit;transition:all .2s"
+              onmouseover="this.style.background='var(--gold);color:var(--dark)'"
+              onmouseout="this.style.background='var(--dark)'">
+        ⚡ Change Status
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -2554,104 +2617,79 @@ async function confirmPermDelete() {
 
 let currentMemberId = null;
 async function openMemberBooksModal(id) {
-     currentMemberId = id; 
+    currentMemberId = id;
 
     const member = members.find(m => m.id === id);
 
     document.getElementById('memberBooksName')
-        .textContent = `Showing borrowed books for: ${member.name}`;
+        .textContent = member
+            ? 'Showing borrowed books for: ' + member.name
+            : '';
 
     document.getElementById('memberBooksModal')
         .classList.add('open');
 
-    
-    document.getElementById('memberBooksName')
-        .textContent = member 
-            ? 'Showing borrowed books for: ' + member.name 
-            : '';
+    const tbody = document.getElementById('memberBooksTable');
 
-    
-    document.getElementById('memberBooksTable')
-        .innerHTML = `
+    // Show loading state
+    tbody.innerHTML = `
         <tr>
-            <td colspan="7" 
-                style="text-align:center;
-                       padding:2rem;
-                       color:var(--muted);
-                       font-style:italic">
+            <td colspan="7"
+                style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">
+                <span style="font-size:1.5rem;display:block;margin-bottom:.5rem">⏳</span>
                 Loading...
             </td>
         </tr>`;
 
-    
-    document.getElementById('memberBooksModal')
-        .classList.add('open');
-
     try {
-        
-        const response = await fetch(
-            `${API}/members/${id}/borrowed`
-        );
+        const response = await fetch(`${API}/members/${id}/borrowed`);
+
+        if (!response.ok) {
+            throw new Error(`Server responded with status ${response.status}`);
+        }
+
         const data = await response.json();
 
-        const tbody = document.getElementById(
-            'memberBooksTable'
-        );
+        // Check if it's an error object from the server
+        if (data && data.message && !Array.isArray(data)) {
+            throw new Error(data.message);
+        }
 
-        
-        if (!data.length) {
+        if (!Array.isArray(data) || data.length === 0) {
             tbody.innerHTML = `
             <tr>
-                <td colspan="7" 
-                    style="text-align:center;
-                           padding:2rem;
-                           color:var(--muted);
-                           font-style:italic">
-                    This member has no borrowed books.
+                <td colspan="7"
+                    style="text-align:center;padding:2.5rem;color:var(--muted);font-style:italic">
+                    <span style="font-size:1.5rem;display:block;margin-bottom:.5rem">📭</span>
+                    This member has no currently borrowed books.
                 </td>
             </tr>`;
             return;
         }
 
-        
-        const today = new Date()
-            .toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
 
         tbody.innerHTML = data.map(b => {
-            const overdue = b.Due_Date
-                ?.split('T')[0] < today 
-                && b.Status === 'Overdue';
+            const dueDate  = b.Due_Date?.split('T')[0]  || null;
+            const borrowDate = b.Borrow_Date?.split('T')[0] || '—';
+            const overdue  = b.Status === 'Overdue';
+            const statusClass = overdue ? 'status-overdue' : 'status-borrowed';
+
             return `<tr>
                 <td>
                     <span class="id-chip">
-                        BOOK-${String(b.Book_ID)
-                            .padStart(4,'0')}
+                        BOOK-${String(b.Book_ID).padStart(4,'0')}
                     </span>
                 </td>
-                <td style="font-weight:600">
-                    ${b.Book_Title}
-                </td>
-                <td style="color:var(--muted);
-                           font-style:italic">
-                    ${b.Book_Author}
-                </td>
-                <td>${b.Book_Genre}</td>
-                <td>${b.Borrow_Date
-                    ?.split('T')[0] || '—'}
-                </td>
-                <td style="color:${overdue 
-                    ? '#c0392b' : 'inherit'};
-                    font-weight:${overdue 
-                    ? '600' : '400'}">
-                    ${b.Due_Date
-                        ?.split('T')[0] || '—'}
-                    ${overdue ? ' ⚠' : ''}
+                <td style="font-weight:600">${b.Book_Title || '—'}</td>
+                <td style="color:var(--muted);font-style:italic">${b.Book_Author || '—'}</td>
+                <td>${b.Book_Genre || '—'}</td>
+                <td>${borrowDate}</td>
+                <td style="color:${overdue ? '#c0392b' : 'inherit'};font-weight:${overdue ? '600' : '400'}">
+                    ${dueDate || '—'}${overdue ? ' ⚠️' : ''}
                 </td>
                 <td>
-                    <span class="status-badge 
-                        ${b.Status === 'Overdue' 
-                            ? 'status-overdue' 
-                            : 'status-borrowed'}">
+                    <span class="status-badge ${statusClass}">
                         ${b.Status}
                     </span>
                 </td>
@@ -2660,14 +2698,15 @@ async function openMemberBooksModal(id) {
 
     } catch (err) {
         console.error('Error loading member books:', err);
-        document.getElementById('memberBooksTable')
-            .innerHTML = `
+        tbody.innerHTML = `
             <tr>
-                <td colspan="7" 
-                    style="text-align:center;
-                           padding:2rem;
-                           color:#c0392b">
-                    Error loading books!
+                <td colspan="7"
+                    style="text-align:center;padding:2.5rem">
+                    <span style="font-size:1.5rem;display:block;margin-bottom:.5rem">⚠️</span>
+                    <span style="color:#c0392b;font-weight:600">Could not load borrowed books.</span><br>
+                    <span style="color:var(--muted);font-size:.8rem;margin-top:.3rem;display:block">
+                        Make sure the server is running at <code>${API}</code>
+                    </span>
                 </td>
             </tr>`;
     }
