@@ -6974,7 +6974,7 @@ if (contact && !contactRegex.test(contact)) {
         const result = await response.json();
 
 
-        
+        console.log(result);
         if (result.status === 'error') {
             openNotifModal(
                 '⚠️ Cannot Add Member',
