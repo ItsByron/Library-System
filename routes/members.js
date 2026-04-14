@@ -39,7 +39,7 @@ router.post('/', (req, res) => {
                 }
 
                 if (results[0].count > 0) {
-                    res.status(400).json({
+                    res.json({
                         status : 'error',
                         message: 'Email is already registered!'
                     });
@@ -72,7 +72,7 @@ router.post('/', (req, res) => {
 
                     //Contact already exists!
                     if (results[0].count > 0) {
-                        res.status(400).json({
+                        res.json({
                             status : 'error',
                             message: 'Contact number is already registered!'
                         });
@@ -131,6 +131,28 @@ router.put('/', (req, res) => {
                 return;
             }
             res.json({ message: 'Member updated successfully!' });
+        }
+    );
+});
+
+router.put('/status', (req, res) => {
+    const { Member_ID, Member_Status } = req.body;
+
+    db.query(
+        'CALL sp_UpdateMemberStatus(?, ?)',
+        [Member_ID, Member_Status],
+        (err) => {
+            if (err) {
+                return res.json({
+                    status: 'error',
+                    message: 'Error updating status'
+                });
+            }
+
+            res.json({
+                status: 'success',
+                message: 'Status updated successfully!'
+            });
         }
     );
 });

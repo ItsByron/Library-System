@@ -28,14 +28,16 @@ router.post('/', (req, res) => {
         'CALL sp_AddBook(?, ?, ?, ?, ?)',
         [Title, Author, Isbn, Genre, Year],
         (err, results) => {
+
             if (err) {
-                res.status(500).json({ 
-                    message: 'Error adding book', 
-                    error: err 
+                return res.json({
+                    status: 'error',
+                    message: 'Database error'
                 });
-                return;
             }
-            res.json({ message: 'Book added successfully!' });
+            const result = results[0][0];
+
+            res.json(result);
         }
     );
 });

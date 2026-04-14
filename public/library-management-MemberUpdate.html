@@ -5890,7 +5890,22 @@ nav button {
 
 }
 
+.status {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
 
+.status.active {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status.restricted {
+  background: #f8d7da;
+  color: #721c24;
+}
 
 </style>
 </head>
@@ -6044,6 +6059,7 @@ nav button {
               <th>Contact</th>
               <th>Joined</th>
               <th style="text-align:center">Books Out</th>
+              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -6318,11 +6334,43 @@ nav button {
   </div>
 </div>
 
+<div class="overlay" id="editMemberModal">
+  <div class="modal">
+    <h3>Edit Member</h3>
+
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="edit-name">
+    </div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input type="text" id="edit-email">
+    </div>
+
+    <div class="form-group">
+      <label>Contact</label>
+      <input type="text" id="edit-contact">
+    </div>
+
+    <div class="modal-actions">
+      <button onclick="closeEditMemberModal()">Cancel</button>
+      <button onclick="updateMember()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="memberBooksModal">
   <div class="modal" style="max-width:700px">
     <h3 style="font-family:'Playfair Display',serif">
       📚 Borrowed Books
     </h3>
+    <div class="modal-actions">
+      <button class="btn-confirm"
+              onclick="openEditMemberModal()">
+        Edit Member
+      </button>
+    </div>
     <p style="color:var(--muted);font-style:italic;
               margin-top:.3rem;margin-bottom:1rem"
        id="memberBooksName">
@@ -6352,6 +6400,12 @@ nav button {
               onclick="closeMemberBooksModal()">
         Close
       </button>
+      <div class="modal-actions">
+        <button class="btn-confirm"
+                onclick="toggleMemberStatus()">
+        Change Status
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -6412,6 +6466,7 @@ async function loadMembers() {
             joined : m.Date_Joined
                        ? m.Date_Joined.split('T')[0]
                        : '',
+            status : m.Member_Status,
             color  : MEMBER_COLORS[i % MEMBER_COLORS.length]
         }));
         renderMembers();
@@ -6648,6 +6703,39 @@ async function addBook() {
     }
 }
 
+async function toggleMemberStatus() {
+    if (!currentMemberId) return;  // ← add this back
+
+    const member = members.find(m => m.id === currentMemberId);
+    if (!member) return;
+
+    let newStatus = member.status === 'Active' ? 'Restricted' : 'Active';
+
+    try {
+        const response = await fetch(`${API}/members/status`, {
+            method : 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Member_ID    : currentMemberId,
+                Member_Status: newStatus
+            })
+        });
+
+        const result = await response.json();
+        document.getElementById('memberBooksModal').classList.remove('open');
+        openNotifModal(
+            'Status Updated',
+            `${member.name} is now ${newStatus}`,
+            'success'
+        );
+
+        await loadMembers();
+
+    } catch (err) {
+        console.error(err);
+        openNotifModal('Error', 'Failed to update status!', 'error');
+    }
+}
 function openBorrowModal(id) {
   pendingBorrowId = id;
   const book = books.find(b => b.id === id);
@@ -6699,7 +6787,8 @@ async function confirmBorrow() {
 async function returnBook(id) {
     try {
         const tx = history.find(
-            h => h.bookId === id && h.status === null
+            h => h.bookId === id &&
+            (h.status === 'borrowed' || h.status === 'overdue')
         );
         if (!tx) { return; }
         await fetch(`${API}/transactions/return/${tx.id}`, {
@@ -6971,7 +7060,28 @@ if (contact && !contactRegex.test(contact)) {
             })
         });
 
-        const result = await response.json();
+        let result;
+
+        if (!response.ok) {
+            // Handle backend error properly
+            const errorText = await response.text();
+
+            try {
+                result = JSON.parse(errorText);
+            } catch {
+                result = { message: 'Unknown error occurred' };
+            }
+
+            openNotifModal(
+                '⚠️ Cannot Add Member',
+                result.message || 'Something went wrong!',
+                'error'
+            );
+            return;
+        }
+
+        // If success
+        result = await response.json();
 
 
         console.log(result);
@@ -7117,7 +7227,7 @@ function renderMembers() {
 
   const tbody = document.getElementById('memberTable');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" 
+    tbody.innerHTML = `<tr><td colspan="8" 
       style="text-align:center;padding:2rem;color:var(--muted);font-style:italic">
       No members match your search.</td></tr>`;
     return;
@@ -7127,39 +7237,52 @@ function renderMembers() {
     const booksOut = books.filter(
         b => b.borrowed && b.borrowedBy === m.id
     ).length;
-    return `<tr>
-      <td style="font-weight:600">${m.name}</td>
-      <td><span class="id-chip">
-          MBR-${String(m.id).padStart(4,'0')}
-      </span></td>
-      <td style="color:var(--muted);font-style:italic">
-          ${m.email || '—'}
-      </td>
-      <td>${m.contact || '—'}</td>
-      <td>${m.joined}</td>
-      <td style="text-align:center">
-        <span style="font-weight:600;
-                     color:${booksOut > 0 
-                         ? 'var(--rust)' 
-                         : 'var(--forest)'}">
-          ${booksOut}
-        </span>
-      </td>
-      <td>
-        <div style="display:flex;gap:.4rem">
-          
-          <button class="btn-action btn-edit"
-                  onclick="openMemberBooksModal(${m.id})">
-            View
-          </button>
-          
-          <button class="btn-action btn-del" 
-                  onclick="removeMember(${m.id})">
-            Remove
-          </button>
-        </div>
-      </td>
-    </tr>`;
+      return `<tr>
+        <td style="font-weight:600">${m.name}</td>
+
+        <td><span class="id-chip">
+            MBR-${String(m.id).padStart(4,'0')}
+        </span></td>
+
+        <td style="color:var(--muted);font-style:italic">
+            ${m.email || '—'}
+        </td>
+
+        <td>${m.contact || '—'}</td>
+
+        <td>${m.joined}</td>
+
+        <td style="text-align:center">
+          <span style="font-weight:600;
+                      color:${booksOut > 0 
+                          ? 'var(--rust)' 
+                          : 'var(--forest)'}">
+            ${booksOut}
+          </span>
+        </td>
+
+        <!-- 🔥 ADD THIS -->
+        <td style="text-align:center">
+          <span class="status ${m.status.toLowerCase()}">
+            ${m.status}
+          </span>
+        </td>
+
+        <td>
+          <div style="display:flex;gap:.4rem">
+            
+            <button class="btn-action btn-edit"
+                    onclick="openMemberBooksModal(${m.id})">
+              View
+            </button>
+            
+            <button class="btn-action btn-del" 
+                    onclick="removeMember(${m.id})">
+              Remove
+            </button>
+          </div>
+        </td>
+      </tr>`;
   }).join('');
 }
 
@@ -7346,8 +7469,17 @@ function confirmPermDelete() {
   updateStats();
 }
 
+let currentMemberId = null;
 async function openMemberBooksModal(id) {
+     currentMemberId = id; 
+
     const member = members.find(m => m.id === id);
+
+    document.getElementById('memberBooksName')
+        .textContent = `Showing borrowed books for: ${member.name}`;
+
+    document.getElementById('memberBooksModal')
+        .classList.add('open');
 
     
     document.getElementById('memberBooksName')
@@ -7458,9 +7590,62 @@ async function openMemberBooksModal(id) {
     }
 }
 
+
+
 function closeMemberBooksModal() {
     document.getElementById('memberBooksModal')
         .classList.remove('open');
+}
+
+function openEditMemberModal() {
+
+    const member = members.find(m => m.id === currentMemberId);
+    if (!member) return;
+
+    document.getElementById('edit-name').value = member.name;
+    document.getElementById('edit-email').value = member.email;
+    document.getElementById('edit-contact').value = member.contact;
+
+    document.getElementById('editMemberModal').classList.add('open');
+}
+
+function closeEditMemberModal() {
+    document.getElementById('editMemberModal').classList.remove('open');
+}
+
+async function updateMember() {
+
+    const name    = document.getElementById('edit-name').value.trim();
+    const email   = document.getElementById('edit-email').value.trim();
+    const contact = document.getElementById('edit-contact').value.trim();
+
+    try {
+        const response = await fetch(`${API}/members`, {
+            method : 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body   : JSON.stringify({
+                Member_ID     : currentMemberId,
+                Name          : name,
+                Email         : email,
+                Contact_Number: contact
+            })
+        });
+
+        const result = await response.json();
+
+        openNotifModal(
+            'Updated',
+            'Member info updated successfully!',
+            'success'
+        );
+
+        closeEditMemberModal();
+        await loadMembers();
+
+    } catch (err) {
+        console.error(err);
+        openNotifModal('Error', 'Update failed!', 'error');
+    }
 }
 
 init();
