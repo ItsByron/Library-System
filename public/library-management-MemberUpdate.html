@@ -4248,22 +4248,47 @@ async function confirmBorrow() {
     }
 }
 
+
 async function returnBook(id) {
     try {
         const tx = history.find(
-            h => h.bookId === id && h.status === 'borrowed'
+            h => h.bookId === id && h.returnDate === null
         );
-        if (!tx) { return; }
+
+        if (!tx) {
+            console.log("No active transaction found");
+            return;
+        }
+
         await fetch(`${API}/transactions/return/${tx.id}`, {
             method: 'POST'
         });
+
         await loadBooks();
         await loadTransactions();
         await loadBorrowed();
+
     } catch (err) {
         console.error('Error returning book:', err);
     }
 }
+
+// async function returnBook(id) {
+//     try {
+//         const tx = history.find(
+//             h => h.bookId === id && h.status === 'borrowed'
+//         );
+//         if (!tx) { return; }
+//         await fetch(`${API}/transactions/return/${tx.id}`, {
+//             method: 'POST'
+//         });
+//         await loadBooks();
+//         await loadTransactions();
+//         await loadBorrowed();
+//     } catch (err) {
+//         console.error('Error returning book:', err);
+//     }
+// }
 
 function openDeleteModal(id) {
   pendingDeleteId = id;
