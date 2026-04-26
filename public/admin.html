@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login - AlgoReadthm</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Crimson Pro', serif;
+    background: #F5F0E8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .auth-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 360px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  }
+
+  .brand { text-align: center; margin-bottom: 1.75rem; }
+
+  .brand-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: #112240;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 0.75rem;
+  }
+
+  .brand h1 {
+    font-size: 20px; font-weight: 500;
+    color: #0B1829; margin-bottom: 4px;
+  }
+
+  .brand p { font-size: 13px; color: #666; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .field-group { margin-bottom: 0.75rem; }
+
+  .field-group label {
+    display: block; font-size: 13px;
+    color: #555; margin-bottom: 5px; font-weight: 600;
+  }
+
+  .field-group input {
+    width: 100%; padding: 0 0.75rem; height: 40px;
+    border: 1px solid #ddd; border-radius: 7px;
+    background: #fafafa; color: #111;
+    font-size: 14px; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .field-group input:focus {
+    border-color: #378ADD;
+    box-shadow: 0 0 0 3px rgba(55,138,221,0.12);
+    background: #fff;
+  }
+
+  .btn-primary {
+    width: 100%; height: 40px;
+    background: #112240; color: #F0D98B;
+    border: none; border-radius: 7px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 0.5rem;
+    transition: background 0.15s;
+  }
+
+  .btn-primary:hover { background: #1B3A5C; }
+
+  .btn-primary:disabled {
+    background: #888; cursor: not-allowed;
+  }
+
+  .switch-row {
+    text-align: center; margin-top: 1.25rem;
+    font-size: 13px; color: #666;
+  }
+
+  .switch-row button {
+    background: none; border: none; cursor: pointer;
+    color: #378ADD; font-size: 13px; font-weight: 600;
+    padding: 0; text-decoration: underline;
+  }
+
+  .switch-row button:hover { color: #185FA5; }
+
+  .msg {
+    font-size: 13px; min-height: 18px;
+    margin-top: 8px; text-align: center;
+  }
+
+  .msg.error { color: #c0392b; }
+  .msg.success { color: #1a7a4a; }
+</style>
+</head>
+<body>
+
+<div class="auth-card">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 14L8 8l3 4 2-2.5L17 14H4z" fill="#F0D98B"/>
+        <circle cx="10" cy="5" r="2" fill="#F0D98B" opacity="0.6"/>
+      </svg>
+    </div>
+    <h1>AlgoReadthm</h1>
+    <p id="brand-sub">Admin portal</p>
+  </div>
+
+
+  <div class="panel active" id="loginPanel">
+    <div class="field-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="field-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="loginBtn" onclick="login()">Sign in</button>
+    <p class="msg error" id="msg"></p>
+    <div class="switch-row">
+      No account? <button onclick="showPanel('register')">Create admin account</button>
+    </div>
+  </div>
+
+
+  <div class="panel" id="registerPanel">
+    <div class="field-group">
+      <label for="reg_username">Username</label>
+      <input type="text" id="reg_username" placeholder="Choose a username" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label for="reg_password">Password</label>
+      <input type="password" id="reg_password" placeholder="Choose a password" autocomplete="new-password">
+    </div>
+    <button class="btn-primary" id="registerBtn" onclick="register()">Create account</button>
+    <p class="msg" id="reg_msg"></p>
+    <div class="switch-row">
+      Already have an account? <button onclick="showPanel('login')">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3000/api';
+
+function showPanel(name) {
+  document.getElementById('loginPanel').classList.toggle('active', name === 'login');
+  document.getElementById('registerPanel').classList.toggle('active', name === 'register');
+  document.getElementById('brand-sub').textContent =
+    name === 'login' ? 'Admin portal' : 'Create admin account';
+  document.getElementById('msg').textContent = '';
+  document.getElementById('reg_msg').textContent = '';
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = loading;
+  btn.textContent = loading
+    ? (btnId === 'loginBtn' ? 'Signing in...' : 'Creating...')
+    : (btnId === 'loginBtn' ? 'Sign in' : 'Create account');
+}
+
+async function login() {
+  const Username = document.getElementById('username').value.trim();
+  const Password = document.getElementById('password').value;
+  const msgEl = document.getElementById('msg');
+  msgEl.textContent = '';
+
+  if (!Username || !Password) {
+    msgEl.textContent = 'Please fill in all fields.';
+    return;
+  }
+
+  setLoading('loginBtn', true);
+
+  try {
+    const res = await fetch(`${API}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Username, Password })
+    });
+
+    const data = await res.json();
+
+    if (data.status === 'success') {
+      localStorage.setItem('loggedIn', true);
+      window.location.href = 'index.html';
+    } else {
+      msgEl.textContent = data.message || 'Invalid username or password.';
+    }
+  } catch (err) {
+    msgEl.textContent = 'Could not connect to server. Is it running?';
+  } finally {
+    setLoading('loginBtn', false);
+  }
+}
+
+async function register() {
+  const Username = document.getElementById('reg_username').value.trim();
+  const Password = document.getElementById('reg_password').value;
+  const msgEl = document.getElementById('reg_msg');
+  msgEl.textContent = '';
+  msgEl.className = 'msg';
+
+  if (!Username || !Password) {
+    msgEl.textContent = 'Please fill in all fields.';
+    msgEl.classList.add('error');
+    return;
+  }
+
+  setLoading('registerBtn', true);
+
+  try {
+    const res = await fetch(`${API}/admin/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ Username, Password })
+    });
+
+    const data = await res.json();
+    msgEl.textContent = data.message;
+
+    if (data.status === 'success') {
+      msgEl.classList.add('success');
+      document.getElementById('reg_username').value = '';
+      document.getElementById('reg_password').value = '';
+
+      setTimeout(() => showPanel('login'), 1500);
+    } else {
+      msgEl.classList.add('error');
+    }
+  } catch (err) {
+    msgEl.textContent = 'Could not connect to server. Is it running?';
+    msgEl.classList.add('error');
+  } finally {
+    setLoading('registerBtn', false);
+  }
+}
+
+document.getElementById('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+document.getElementById('reg_password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') register();
+});
+</script>
+
+</body>
+</html>

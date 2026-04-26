@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors    = require('cors');
 const app     = express();
@@ -7,10 +8,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-//ROUTES
+// ROUTES
 app.use('/api/books',        require('./routes/books'));
 app.use('/api/members',      require('./routes/members'));
 app.use('/api/transactions', require('./routes/transactions'));
+app.use('/api/fines',        require('./routes/fines'));  
+app.use('/api/admin', require('./routes/admin'));
 
 // START SERVER
 const PORT = 3000;
